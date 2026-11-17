@@ -8,7 +8,7 @@ Mã nguồn này dùng một project Supabase riêng tên `so-tay-do-an`. Không
 - Đã chạy `supabase-setup.sql`: có bảng `cats`, `cat_editors`, `cat_submissions` và bucket `cat-images`.
 - Auth: đăng ký email bật, xác nhận email bật; Site URL và Redirect URL là địa chỉ GitHub Pages bên dưới.
 - `index.html` đã điền URL và publishable key của project mới.
-- Chưa có admin; chưa bật GitHub Pages.
+- Đã cấp quyền admin cho tài khoản quản trị; GitHub Pages đã xuất bản từ nhánh `main`.
 
 ## 1. Tạo Supabase và chạy SQL
 
