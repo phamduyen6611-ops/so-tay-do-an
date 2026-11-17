@@ -2,11 +2,13 @@
 
 Mã nguồn này dùng một project Supabase riêng tên `so-tay-do-an`. Không chạy SQL hoặc đổi Auth của project app mèo `sxeslpgevuzabvetfijl`.
 
-## Trạng thái chuẩn bị
+## Trạng thái (17/11/2026)
 
-- URL/key dùng chung với app mèo đã được gỡ khỏi `index.html`.
-- Khi chưa điền cấu hình mới, ứng dụng chỉ lưu dữ liệu đồ ăn trên thiết bị.
-- Chưa xác nhận việc tạo project Supabase, chạy SQL, tạo repo hoặc bật GitHub Pages.
+- Đã tạo project Supabase `so-tay-do-an` (ref `kuekxxtxtenhqpiooivz`, vùng Asia-Pacific, org `baobao`).
+- Đã chạy `supabase-setup.sql`: có bảng `cats`, `cat_editors`, `cat_submissions` và bucket `cat-images`.
+- Auth: đăng ký email bật, xác nhận email bật; Site URL và Redirect URL là địa chỉ GitHub Pages bên dưới.
+- `index.html` đã điền URL và publishable key của project mới.
+- Chưa có admin; chưa bật GitHub Pages.
 
 ## 1. Tạo Supabase và chạy SQL
 

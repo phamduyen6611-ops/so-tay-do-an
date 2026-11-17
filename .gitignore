@@ -1,2 +1,4 @@
 .supabase-token
 .github-token
+.playwright-mcp/
+.mcp.json
