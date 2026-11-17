@@ -1593,30 +1593,96 @@
             ].filter(Boolean).join(' · ');
         }
         const personalListsKey = 'foodMapPersonalLists';
-        let personalLists = { favorite: [], want: [] };
-        try {
-            const storedLists = JSON.parse(localStorage.getItem(personalListsKey) || '{}');
-            ['favorite', 'want'].forEach(list => {
-                if (Array.isArray(storedLists[list])) personalLists[list] = storedLists[list].filter(id => typeof id === 'string');
-            });
-        } catch (error) {
-            console.warn('Không đọc được danh sách yêu thích:', error);
+        const personalListNames = ['favorite', 'want'];
+        let personalListsInCloud = false;
+
+        function readLocalPersonalLists() {
+            const lists = { favorite: [], want: [] };
+            try {
+                const storedLists = JSON.parse(localStorage.getItem(personalListsKey) || '{}');
+                personalListNames.forEach(list => {
+                    if (Array.isArray(storedLists[list])) lists[list] = storedLists[list].filter(id => typeof id === 'string');
+                });
+            } catch (error) {
+                console.warn('Không đọc được danh sách yêu thích:', error);
+            }
+            return lists;
         }
+
+        function writeLocalPersonalLists(lists) {
+            try {
+                localStorage.setItem(personalListsKey, JSON.stringify(lists));
+            } catch (error) {
+                console.warn('Không lưu được danh sách yêu thích:', error);
+            }
+        }
+
+        let personalLists = readLocalPersonalLists();
 
         function isInPersonalList(list, catId) {
             return personalLists[list].includes(catId);
         }
 
-        function togglePersonalList(list, catId) {
-            personalLists[list] = isInPersonalList(list, catId)
-                ? personalLists[list].filter(id => id !== catId)
-                : [...personalLists[list], catId];
-            try {
-                localStorage.setItem(personalListsKey, JSON.stringify(personalLists));
-            } catch (error) {
-                console.warn('Không lưu được danh sách yêu thích:', error);
+        // Đăng nhập: danh sách lưu trên Supabase theo tài khoản (đồng bộ mọi thiết bị).
+        // Chưa đăng nhập: lưu trên trình duyệt này; khi đăng nhập sẽ được gộp lên tài khoản.
+        async function syncPersonalLists() {
+            if (!supabaseClient || !currentUser) {
+                personalListsInCloud = false;
+                personalLists = readLocalPersonalLists();
+                return;
             }
-            return isInPersonalList(list, catId);
+            const localLists = readLocalPersonalLists();
+            const knownIds = new Set(cats.map(cat => cat.id));
+            const localRows = personalListNames.flatMap(list => localLists[list]
+                .filter(catId => knownIds.has(catId))
+                .map(catId => ({ user_id: currentUser.id, cat_id: catId, list })));
+            if (localRows.length) {
+                const { error } = await supabaseClient
+                    .from('user_food_lists')
+                    .upsert(localRows, { onConflict: 'user_id,cat_id,list', ignoreDuplicates: true });
+                if (error) throw error;
+            }
+            const { data, error } = await supabaseClient
+                .from('user_food_lists')
+                .select('cat_id, list')
+                .eq('user_id', currentUser.id);
+            if (error) throw error;
+            const cloudLists = { favorite: [], want: [] };
+            (data || []).forEach(row => {
+                if (cloudLists[row.list]) cloudLists[row.list].push(row.cat_id);
+            });
+            personalLists = cloudLists;
+            personalListsInCloud = true;
+            if (localRows.length || personalListNames.some(list => localLists[list].length)) {
+                writeLocalPersonalLists({ favorite: [], want: [] });
+            }
+        }
+
+        async function refreshPersonalLists() {
+            try {
+                await syncPersonalLists();
+            } catch (error) {
+                console.error('Không đồng bộ được danh sách Yêu thích/Muốn thử:', error);
+                showAppStatus(`Không đồng bộ được danh sách Yêu thích/Muốn thử: ${error.message}`);
+            }
+            renderCatMarkers();
+        }
+
+        async function togglePersonalList(list, catId) {
+            const adding = !isInPersonalList(list, catId);
+            if (personalListsInCloud && currentUser) {
+                const query = adding
+                    ? supabaseClient.from('user_food_lists').insert({ user_id: currentUser.id, cat_id: catId, list })
+                    : supabaseClient.from('user_food_lists').delete()
+                        .eq('user_id', currentUser.id).eq('cat_id', catId).eq('list', list);
+                const { error } = await query;
+                if (error && error.code !== '23505') throw error;
+            }
+            personalLists[list] = adding
+                ? [...personalLists[list], catId]
+                : personalLists[list].filter(id => id !== catId);
+            if (!personalListsInCloud) writeLocalPersonalLists(personalLists);
+            return adding;
         }
 
         function getCatShareUrl(catId) {
@@ -2746,6 +2812,7 @@
                 await refreshEditorAccess();
                 await refreshCloudCats();
                 if (isCatAdmin) await refreshPendingSubmissions();
+                await refreshPersonalLists();
                 subscribeToCloudCats();
                 storageReady = true;
                 updateCollaborationControls();
@@ -3178,10 +3245,18 @@
                 event.preventDefault();
                 event.stopPropagation();
                 const list = personalButton.dataset.catPersonal;
-                const added = togglePersonalList(list, personalButton.dataset.catId);
-                personalButton.setAttribute('aria-pressed', String(added));
-                showAppStatus(`${added ? 'Đã thêm vào' : 'Đã bỏ khỏi'} danh sách ${list === 'favorite' ? 'Yêu thích' : 'Muốn thử'} (lưu trên máy này).`);
-                renderCatList();
+                personalButton.disabled = true;
+                try {
+                    const added = await togglePersonalList(list, personalButton.dataset.catId);
+                    personalButton.setAttribute('aria-pressed', String(added));
+                    showAppStatus(`${added ? 'Đã thêm vào' : 'Đã bỏ khỏi'} danh sách ${list === 'favorite' ? 'Yêu thích' : 'Muốn thử'}${personalListsInCloud ? '' : ' (lưu trên máy này — đăng nhập để đồng bộ)'}.`);
+                    renderCatList();
+                } catch (error) {
+                    console.error('Không cập nhật được danh sách:', error);
+                    showAppStatus(`Không cập nhật được danh sách: ${error.message}`);
+                } finally {
+                    personalButton.disabled = false;
+                }
                 return;
             }
             const shareButton = event.target.closest('button[data-cat-share]');
@@ -3473,7 +3548,10 @@
                     isSignedIn = false;
                     isCatAdmin = false;
                     pendingCatSubmissions = [];
-                    setTimeout(updateCollaborationControls, 0);
+                    setTimeout(() => {
+                        updateCollaborationControls();
+                        refreshPersonalLists();
+                    }, 0);
                 } else if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') {
                     setTimeout(async () => {
                         try {
@@ -3481,6 +3559,7 @@
                             if (storageReady) {
                                 await refreshCloudCats();
                                 if (isCatAdmin) await refreshPendingSubmissions();
+                                await refreshPersonalLists();
                             }
                         } catch (error) {
                             console.error('Không thể cập nhật quyền cộng tác:', error);

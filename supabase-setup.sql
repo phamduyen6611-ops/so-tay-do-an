@@ -416,3 +416,32 @@ begin
     end if;
 end;
 $$;
+
+-- Danh sách Yêu thích / Muốn thử của từng tài khoản (đồng bộ giữa các thiết bị).
+create table if not exists public.user_food_lists (
+    user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+    cat_id text not null references public.cats(id) on delete cascade,
+    list text not null check (list in ('favorite', 'want')),
+    created_at timestamptz not null default now(),
+    primary key (user_id, cat_id, list)
+);
+
+alter table public.user_food_lists enable row level security;
+
+drop policy if exists "Users can view own food lists" on public.user_food_lists;
+create policy "Users can view own food lists"
+    on public.user_food_lists for select to authenticated
+    using (user_id = (select auth.uid()));
+
+drop policy if exists "Users can add to own food lists" on public.user_food_lists;
+create policy "Users can add to own food lists"
+    on public.user_food_lists for insert to authenticated
+    with check (user_id = (select auth.uid()));
+
+drop policy if exists "Users can remove from own food lists" on public.user_food_lists;
+create policy "Users can remove from own food lists"
+    on public.user_food_lists for delete to authenticated
+    using (user_id = (select auth.uid()));
+
+revoke all on public.user_food_lists from anon;
+grant select, insert, delete on public.user_food_lists to authenticated;
