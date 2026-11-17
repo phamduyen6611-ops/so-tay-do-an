@@ -2310,7 +2310,7 @@
         async function refreshCloudCats() {
             const { data, error } = await supabaseClient
                 .from('cats')
-                .select('id, lat, lng, name, location_name, note, image, approximate, current_status, status_note, status_updated_at, created_by, updated_by, updated_at')
+                .select('id, lat, lng, name, location_name, note, image, approximate, category, price_range, rating, current_status, status_note, status_updated_at, created_by, updated_by, updated_at')
                 .order('updated_at', { ascending: false });
             if (error) throw error;
             cats = validateCats(data.map(catFromCloudRow));
