@@ -1485,7 +1485,7 @@
         async function shareCat(cat) {
             const url = getCatShareUrl(cat.id);
             const title = cat.name || 'Quán chưa đặt tên';
-            if (navigator.share) {
+            if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
                 try {
                     await navigator.share({ title, text: `${title} — Sổ Tay Đồ Ăn`, url });
                     return;
