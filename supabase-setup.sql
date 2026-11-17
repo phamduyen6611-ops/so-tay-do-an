@@ -63,6 +63,25 @@ alter table public.cats
     add constraint cats_current_status_check
     check (current_status in ('unknown', 'seen', 'helped', 'not_found', 'other'));
 
+-- Thông tin đồ ăn: loại món, mức giá (0 = chưa chọn, 1–4), đánh giá (0 = chưa chấm, 1–5 sao).
+alter table public.cats
+    add column if not exists category text not null default '',
+    add column if not exists price_range smallint not null default 0,
+    add column if not exists rating smallint not null default 0;
+
+alter table public.cats drop constraint if exists cats_category_check;
+alter table public.cats
+    add constraint cats_category_check
+    check (category in ('', 'pho_bun', 'com', 'banh_mi', 'an_vat', 'lau_nuong', 'do_uong', 'trang_mieng', 'khac'));
+
+alter table public.cats drop constraint if exists cats_price_range_check;
+alter table public.cats
+    add constraint cats_price_range_check check (price_range between 0 and 4);
+
+alter table public.cats drop constraint if exists cats_rating_check;
+alter table public.cats
+    add constraint cats_rating_check check (rating between 0 and 5);
+
 create table if not exists public.cat_editors (
     user_id uuid primary key references auth.users(id) on delete cascade,
     added_at timestamptz not null default now(),
