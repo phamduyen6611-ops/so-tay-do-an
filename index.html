@@ -229,6 +229,10 @@
             margin-top: 10px;
         }
 
+        .cat-filters label:last-child {
+            grid-column: 1 / -1;
+        }
+
         .cat-filters label {
             min-width: 0;
             font-size: 12px;
@@ -404,12 +408,30 @@
             margin-top: 10px;
         }
 
-        .cat-record-actions button {
+        .cat-record-actions button,
+        .cat-record-actions .cat-popup-link {
             flex: 1;
             padding: 6px 8px;
             background: white;
             border: 1px solid #f1cbd2;
             box-shadow: none;
+        }
+
+        .cat-record-actions .cat-popup-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            box-sizing: border-box;
+            border-radius: 12px;
+            color: var(--text-color);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .cat-popup-tools button[aria-pressed="true"] {
+            background: #ffe3e9;
+            border-color: #ff8da1;
         }
 
         .leaflet-popup-content-wrapper {
@@ -1187,6 +1209,13 @@
                         <option value="unknown">Chưa cập nhật</option>
                     </select>
                 </label>
+                <label for="catPersonalFilter">Của tôi
+                    <select id="catPersonalFilter">
+                        <option value="">Tất cả</option>
+                        <option value="favorite">♥ Yêu thích</option>
+                        <option value="want">🔖 Muốn thử</option>
+                    </select>
+                </label>
                 <label for="catDistanceFilter">Khoảng cách
                     <select id="catDistanceFilter" aria-describedby="catLocationNote">
                         <option value="">Tất cả</option>
@@ -1417,6 +1446,75 @@
         const catSearchResults = document.getElementById('catSearchResults');
         const catStatusFilter = document.getElementById('catStatusFilter');
         const catDistanceFilter = document.getElementById('catDistanceFilter');
+        const catPersonalFilter = document.getElementById('catPersonalFilter');
+        const personalListsKey = 'foodMapPersonalLists';
+        let personalLists = { favorite: [], want: [] };
+        try {
+            const storedLists = JSON.parse(localStorage.getItem(personalListsKey) || '{}');
+            ['favorite', 'want'].forEach(list => {
+                if (Array.isArray(storedLists[list])) personalLists[list] = storedLists[list].filter(id => typeof id === 'string');
+            });
+        } catch (error) {
+            console.warn('Không đọc được danh sách yêu thích:', error);
+        }
+
+        function isInPersonalList(list, catId) {
+            return personalLists[list].includes(catId);
+        }
+
+        function togglePersonalList(list, catId) {
+            personalLists[list] = isInPersonalList(list, catId)
+                ? personalLists[list].filter(id => id !== catId)
+                : [...personalLists[list], catId];
+            try {
+                localStorage.setItem(personalListsKey, JSON.stringify(personalLists));
+            } catch (error) {
+                console.warn('Không lưu được danh sách yêu thích:', error);
+            }
+            return isInPersonalList(list, catId);
+        }
+
+        function getCatShareUrl(catId) {
+            const url = new URL(window.location.href);
+            url.search = '';
+            url.hash = '';
+            url.searchParams.set('quan', catId);
+            return url.toString();
+        }
+
+        async function shareCat(cat) {
+            const url = getCatShareUrl(cat.id);
+            const title = cat.name || 'Quán chưa đặt tên';
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title, text: `${title} — Sổ Tay Đồ Ăn`, url });
+                    return;
+                } catch (error) {
+                    if (error.name === 'AbortError') return;
+                }
+            }
+            try {
+                await navigator.clipboard.writeText(url);
+                showAppStatus('Đã sao chép link quán.');
+            } catch (error) {
+                window.prompt('Sao chép link quán:', url);
+            }
+        }
+
+        function openSharedCatFromUrl() {
+            const sharedId = new URLSearchParams(window.location.search).get('quan');
+            if (!sharedId) return;
+            const sharedCat = cats.find(cat => cat.id === sharedId);
+            if (!sharedCat) {
+                showAppStatus('Không tìm thấy quán trong link chia sẻ (có thể đã bị xóa).');
+                return;
+            }
+            if (!getFilteredCatResults().some(({ cat }) => cat.id === sharedId)) {
+                catClearFiltersButton.click();
+            }
+            map.setView([sharedCat.lat, sharedCat.lng], Math.max(map.getZoom(), 17));
+            openSingleCatPopup(sharedCat);
+        }
         const catLocationButton = document.getElementById('catLocationBtn');
         const catClearFiltersButton = document.getElementById('catClearFiltersBtn');
         const catLocationNote = document.getElementById('catLocationNote');
@@ -1604,6 +1702,37 @@
                     status.appendChild(updatedTime);
                 }
                 entry.appendChild(status);
+
+                const tools = document.createElement('div');
+                tools.className = 'cat-record-actions cat-popup-tools';
+                [
+                    ['favorite', '♥ Yêu thích'],
+                    ['want', '🔖 Muốn thử']
+                ].forEach(([list, labelText]) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = labelText;
+                    button.dataset.catPersonal = list;
+                    button.dataset.catId = cat.id;
+                    button.setAttribute('aria-pressed', String(isInPersonalList(list, cat.id)));
+                    tools.appendChild(button);
+                });
+                entry.appendChild(tools);
+
+                const travelTools = document.createElement('div');
+                travelTools.className = 'cat-record-actions cat-popup-tools';
+                const directions = document.createElement('a');
+                directions.className = 'cat-popup-link';
+                directions.href = `https://www.google.com/maps/dir/?api=1&destination=${cat.lat},${cat.lng}`;
+                directions.target = '_blank';
+                directions.rel = 'noopener';
+                directions.textContent = '🧭 Chỉ đường';
+                const shareButton = document.createElement('button');
+                shareButton.type = 'button';
+                shareButton.textContent = '🔗 Chia sẻ';
+                shareButton.dataset.catShare = cat.id;
+                travelTools.append(directions, shareButton);
+                entry.appendChild(travelTools);
 
                 if (!isCloudConfigured || canManageCat(cat)) {
                     const actions = document.createElement('div');
@@ -2295,12 +2424,14 @@
         function getFilteredCatResults() {
             const query = normalizeSearchText(catSearchInput.value.trim());
             const selectedStatus = catStatusFilter.value;
+            const selectedPersonalList = catPersonalFilter.value;
             const radius = catDistanceFilter.value ? Number(catDistanceFilter.value) : null;
             const results = cats.map(cat => ({
                 cat,
                 distance: catFilterLocation ? L.latLng(cat.lat, cat.lng).distanceTo(catFilterLocation) : null
             })).filter(({ cat, distance }) =>
                 (!selectedStatus || (cat.current_status || 'unknown') === selectedStatus) &&
+                (!selectedPersonalList || isInPersonalList(selectedPersonalList, cat.id)) &&
                 (!radius || (distance !== null && distance <= radius)) &&
                 normalizeSearchText(`${cat.name || 'Quán chưa đặt tên'} ${cat.note || ''} ${formatCatLocation(cat)}`).includes(query)
             );
@@ -2328,7 +2459,8 @@
         }
 
         function renderCatList(results = getFilteredCatResults()) {
-            const hasFilters = Boolean(catSearchInput.value.trim() || catStatusFilter.value || catDistanceFilter.value);
+            const hasFilters = Boolean(catSearchInput.value.trim() || catStatusFilter.value ||
+                catPersonalFilter.value || catDistanceFilter.value);
             catListToggle.textContent = hasFilters
                 ? `🍜 Danh sách quán (${results.length}/${cats.length})`
                 : `🍜 Danh sách quán (${cats.length})`;
@@ -2354,7 +2486,11 @@
                 button.className = 'cat-search-result';
                 button.setAttribute('role', 'listitem');
                 const name = document.createElement('span');
-                name.textContent = cat.name || 'Quán chưa đặt tên';
+                const personalBadges = [
+                    isInPersonalList('favorite', cat.id) ? '♥' : '',
+                    isInPersonalList('want', cat.id) ? '🔖' : ''
+                ].filter(Boolean).join(' ');
+                name.textContent = [cat.name || 'Quán chưa đặt tên', personalBadges].filter(Boolean).join(' ');
                 button.appendChild(name);
                 const location = document.createElement('small');
                 location.className = 'cat-search-location';
@@ -2863,6 +2999,25 @@
         }
 
         map.getContainer().addEventListener('click', async event => {
+            const personalButton = event.target.closest('button[data-cat-personal]');
+            if (personalButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const list = personalButton.dataset.catPersonal;
+                const added = togglePersonalList(list, personalButton.dataset.catId);
+                personalButton.setAttribute('aria-pressed', String(added));
+                showAppStatus(`${added ? 'Đã thêm vào' : 'Đã bỏ khỏi'} danh sách ${list === 'favorite' ? 'Yêu thích' : 'Muốn thử'} (lưu trên máy này).`);
+                renderCatList();
+                return;
+            }
+            const shareButton = event.target.closest('button[data-cat-share]');
+            if (shareButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const sharedCat = cats.find(cat => cat.id === shareButton.dataset.catShare);
+                if (sharedCat) await shareCat(sharedCat);
+                return;
+            }
             const statusButton = event.target.closest('button[data-cat-status]');
             if (statusButton) {
                 event.preventDefault();
@@ -3173,6 +3328,7 @@
         };
         catSearchInput.addEventListener('input', () => renderCatMarkers());
         catStatusFilter.addEventListener('change', () => renderCatMarkers());
+        catPersonalFilter.addEventListener('change', () => renderCatMarkers());
         catDistanceFilter.addEventListener('change', () => {
             renderCatMarkers();
             if (catDistanceFilter.value && !catFilterLocation) requestCatFilterLocation();
@@ -3181,6 +3337,7 @@
         catClearFiltersButton.addEventListener('click', () => {
             catSearchInput.value = '';
             catStatusFilter.value = '';
+            catPersonalFilter.value = '';
             catDistanceFilter.value = '';
             renderCatMarkers();
         });
@@ -3489,6 +3646,7 @@
             openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
             exportBackupButton.disabled = false;
             importBackupButton.disabled = isCloudConfigured && !currentUser;
+            openSharedCatFromUrl();
         }).catch(error => {
             console.error('Không thể khởi tạo kho dữ liệu:', error);
             showAppStatus(`Không thể mở kho dữ liệu trên trình duyệt: ${error.message}`);
