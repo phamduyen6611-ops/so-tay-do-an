@@ -1,0 +1,3499 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- Cấu hình viewport chống zoom khi bấm vào input trên điện thoại -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Sổ Tay Đồ Ăn 🍜</title>
+
+    <!-- Thư viện Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Font chữ dễ thương (Nunito) -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #ff8da1;
+            --bg-color: #fff0f3;
+            --text-color: #5c4346;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Nunito', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        #map {
+            height: 100%;
+            height: 100dvh;
+            width: 100%;
+            z-index: 1;
+        }
+
+        .map-status {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: calc(100% - 32px);
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            z-index: 1100;
+        }
+
+        .app-status {
+            top: 64px;
+        }
+
+        .cat-list-panel {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            left: max(16px, env(safe-area-inset-left));
+            z-index: 1000;
+            width: min(320px, calc(100vw - 32px));
+            font-family: inherit;
+        }
+
+        .cat-list-toggle {
+            min-height: 44px;
+            padding: 8px 14px;
+            border: 0;
+            border-radius: 12px;
+            background: white;
+            color: var(--text-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            font: inherit;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .cat-list-content {
+            display: none;
+            margin-top: 8px;
+            padding: 12px;
+            max-height: calc(100dvh - 160px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+            box-sizing: border-box;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            border-radius: 16px;
+            background: white;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .cat-list-panel.expanded .cat-list-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cat-list-panel.expanded {
+            z-index: 1001;
+        }
+
+        .cat-list-content > :not(.cat-search-results) {
+            flex-shrink: 0;
+        }
+
+        .collaboration-panel {
+            position: fixed;
+            top: max(68px, calc(env(safe-area-inset-top) + 56px));
+            right: max(16px, env(safe-area-inset-right));
+            z-index: 1000;
+            width: min(320px, calc(100vw - 32px));
+            text-align: right;
+        }
+
+        .collaboration-toggle {
+            min-height: 44px;
+            padding: 8px 14px;
+            border: 0;
+            border-radius: 12px;
+            background: white;
+            color: var(--text-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            font: inherit;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .collaboration-content {
+            display: none;
+            margin-top: 8px;
+            padding: 12px;
+            border-radius: 16px;
+            background: white;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            text-align: left;
+        }
+
+        .collaboration-panel.expanded .collaboration-content {
+            display: grid;
+            gap: 8px;
+        }
+
+        .collaboration-content p {
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .collaboration-content input,
+        .collaboration-content button {
+            width: 100%;
+            min-height: 44px;
+            padding: 8px 10px;
+            box-sizing: border-box;
+            border: 1px solid #f1cbd2;
+            border-radius: 10px;
+            background: white;
+            color: var(--text-color);
+            font: inherit;
+        }
+
+        .collaboration-content button {
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .collaboration-content button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .collaboration-content .collaboration-migrate-button {
+            border-color: var(--primary);
+            background: var(--bg-color);
+        }
+
+        .moderation-queue {
+            display: grid;
+            gap: 8px;
+            max-height: min(45dvh, 360px);
+            overflow-y: auto;
+        }
+
+        .moderation-queue[hidden] {
+            display: none;
+        }
+
+        .submission-card {
+            display: grid;
+            gap: 6px;
+            padding: 10px;
+            border: 1px solid #f1cbd2;
+            border-radius: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .submission-card img {
+            width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            object-fit: contain;
+            background: #fff7f8;
+        }
+
+        .submission-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .submission-actions button {
+            flex: 1;
+        }
+
+        .cat-search-input {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 12px;
+            box-sizing: border-box;
+            border: 1px solid #f1cbd2;
+            border-radius: 12px;
+            color: var(--text-color);
+            font: inherit;
+            font-size: 16px;
+        }
+
+        .cat-filters {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .cat-filters label {
+            min-width: 0;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .cat-filters select {
+            width: 100%;
+            min-height: 44px;
+            margin-top: 4px;
+            padding: 8px 4px;
+            box-sizing: border-box;
+            border: 1px solid #f1cbd2;
+            border-radius: 10px;
+            background: white;
+            color: var(--text-color);
+            font: inherit;
+            font-size: 16px;
+        }
+
+        .cat-filter-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .cat-filter-actions button {
+            min-height: 44px;
+            padding: 8px 10px;
+            border: 1px solid #f1cbd2;
+            border-radius: 10px;
+            background: #fff0f3;
+            color: var(--text-color);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .cat-filter-actions button:first-child {
+            flex: 1;
+        }
+
+        .cat-filter-actions button:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .cat-location-note,
+        .cat-filter-summary {
+            margin: 8px 0 0;
+            color: #806b6e;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .cat-filter-summary {
+            color: var(--text-color);
+            font-weight: 700;
+        }
+
+        .cat-search-results {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            grid-auto-rows: max-content;
+            align-content: start;
+            gap: 6px;
+            min-height: 0;
+            max-height: min(45dvh, 360px);
+            margin-top: 8px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .cat-search-result {
+            min-width: 0;
+            min-height: 48px;
+            padding: 8px 10px;
+            border: 1px solid #f4dce1;
+            border-radius: 10px;
+            background: #fff9fa;
+            color: var(--text-color);
+            text-align: left;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .cat-search-result span,
+        .cat-search-result small {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cat-search-result span {
+            font-weight: 900;
+        }
+
+        .cat-search-result small {
+            margin-top: 2px;
+            color: #806b6e;
+        }
+
+        .cat-search-result .cat-search-location {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            line-height: 1.4;
+        }
+
+        .cat-search-empty {
+            margin: 8px 2px 2px;
+            color: #806b6e;
+            font-size: 14px;
+        }
+
+        /* Nút nổi thêm quán */
+        .fab-btn {
+            position: fixed;
+            bottom: max(30px, env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 900;
+            box-shadow: 0 4px 15px rgba(255, 141, 161, 0.5);
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: transform 0.2s;
+        }
+
+        .fab-btn:active {
+            transform: translateX(-50%) scale(0.95);
+        }
+
+        .backup-actions {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            right: max(16px, env(safe-area-inset-right));
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .backup-menu-toggle {
+            display: none;
+        }
+
+        .backup-actions button,
+        .cat-record-actions button {
+            padding: 8px 12px;
+            min-height: 44px;
+            border: 0;
+            border-radius: 12px;
+            background: white;
+            color: var(--text-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .cat-record-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .cat-record-actions button {
+            flex: 1;
+            padding: 6px 8px;
+            background: white;
+            border: 1px solid #f1cbd2;
+            box-shadow: none;
+        }
+
+        .leaflet-popup-content-wrapper {
+            padding: 1px;
+            border-radius: 18px;
+            box-shadow: 0 8px 28px rgba(49, 32, 35, 0.2);
+        }
+
+        .leaflet-popup-content {
+            margin: 44px 12px 12px;
+        }
+
+        .leaflet-container a.leaflet-popup-close-button {
+            top: 8px !important;
+            right: 8px !important;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            width: 28px !important;
+            height: 28px !important;
+            padding: 0 !important;
+            border-radius: 50%;
+            background: #fff0f3 !important;
+            color: var(--text-color) !important;
+            font-size: 20px !important;
+            line-height: 1 !important;
+        }
+
+        .cat-popup-list {
+            display: grid;
+            gap: 10px;
+            width: min(340px, calc(100vw - 88px));
+            max-height: min(65dvh, 520px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 2px;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .cat-popup-entry {
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 14px;
+            border: 1px solid #f3e1e4;
+            border-radius: 15px;
+            background: linear-gradient(145deg, #fffafb, #fff4f6);
+            overflow-wrap: anywhere;
+        }
+
+        .cat-popup-header {
+            display: grid;
+            gap: 5px;
+        }
+
+        .cat-popup-title-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .cat-popup-title {
+            color: #49363a;
+            font-size: 19px;
+            font-weight: 900;
+            line-height: 1.25;
+        }
+
+        .cat-popup-location {
+            color: #9a8d8f;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        .cat-popup-note {
+            margin-top: 10px;
+            padding: 9px 10px;
+            border-radius: 10px;
+            background: white;
+            color: #645154;
+            font-size: 13px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .cat-popup-note-label {
+            display: block;
+            margin-bottom: 2px;
+            color: #806b6e;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .cat-popup-approximate {
+            margin-top: 6px;
+            color: #806b6e;
+            font-size: 11px;
+        }
+
+        .cat-status {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #f1dfe2;
+            font-size: 12px;
+            text-align: left;
+        }
+
+        .cat-status-value {
+            flex: 0 0 auto;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #ffe5eb;
+            color: #8d4655;
+            font-size: 10px;
+            font-weight: 900;
+            line-height: 1.3;
+        }
+
+        .cat-status-value[data-status="seen"] {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .cat-status-value[data-status="helped"] {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .cat-status-value[data-status="not_found"] {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .cat-status-value[data-status="other"] {
+            border: 1px solid #4b5563;
+            background: white;
+            color: #374151;
+        }
+
+        .cat-status-note {
+            margin: 7px 0 0;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .cat-status-updated {
+            margin-top: 7px;
+            color: #9a8d8f;
+            font-size: 10px;
+            font-style: italic;
+        }
+
+        .cat-status-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            margin-top: 9px;
+        }
+
+        .cat-status-actions button {
+            min-height: 34px;
+            padding: 5px 8px;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            color: var(--text-color);
+            font: inherit;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .cat-status-actions button[data-cat-status="seen"] {
+            border-color: #86efac;
+            background: #f0fdf4;
+            color: #166534;
+        }
+
+        .cat-status-actions button[data-cat-status="helped"] {
+            border-color: #93c5fd;
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        .cat-status-actions button[data-cat-status="not_found"] {
+            border-color: #d1d5db;
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .cat-status-actions button[data-cat-status="other"] {
+            border-color: #6b7280;
+            background: white;
+            color: #374151;
+        }
+
+        .cat-status-actions button[aria-pressed="true"] {
+            box-shadow: inset 0 0 0 1px currentColor;
+        }
+
+        .cat-status-actions button[data-cat-status="seen"][aria-pressed="true"] {
+            background: #dcfce7;
+        }
+
+        .cat-status-actions button[data-cat-status="helped"][aria-pressed="true"] {
+            background: #dbeafe;
+        }
+
+        .cat-status-actions button[data-cat-status="not_found"][aria-pressed="true"] {
+            background: #e5e7eb;
+        }
+
+        .cat-status-actions button[data-cat-status="other"][aria-pressed="true"] {
+            background: #f3f4f6;
+        }
+
+        .cat-status-actions button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .cat-status-other-form {
+            display: grid;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .cat-status-other-form[hidden] {
+            display: none;
+        }
+
+        .cat-status-other-form textarea {
+            min-height: 72px;
+            padding: 8px;
+            border: 1px solid #f1cbd2;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font: inherit;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .cat-status-other-form button {
+            min-height: 40px;
+            border: 0;
+            border-radius: 10px;
+            background: var(--primary);
+            color: white;
+            font: inherit;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .cat-status-login-note {
+            display: block;
+            margin-top: 5px;
+            color: #806b6e;
+            font-size: 12px;
+        }
+
+        .cat-record-actions {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #f1dfe2;
+        }
+
+        .cat-record-actions button {
+            min-height: 40px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .cat-record-actions button[data-cat-action="edit"] {
+            border-color: #d1d5db;
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .cat-record-actions button[data-cat-action="delete"] {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        .popup-img {
+            display: block;
+            width: 100%;
+            height: 170px;
+            margin-top: 10px;
+            border-radius: 12px;
+            object-fit: cover;
+            background: #fff;
+            cursor: zoom-in;
+        }
+
+        .location-lookup-note {
+            display: block;
+            margin: -8px 0 12px;
+            color: #666;
+            font-size: 12px;
+            text-align: left;
+        }
+
+        .edit-location {
+            display: none;
+            gap: 8px;
+            margin-bottom: 12px;
+            text-align: left;
+        }
+
+        .edit-location.active {
+            display: flex;
+        }
+
+        .edit-location label {
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .edit-location input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+
+        /* Modal nhập thông tin */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 25px;
+            width: min(560px, 100%);
+            max-height: 100%;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            color: var(--primary);
+            font-weight: 900;
+        }
+
+        .image-preview-frame {
+            width: min(100%, 440px);
+            aspect-ratio: 4 / 3;
+            margin: 0 auto;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-btn {
+            display: inline-block;
+            background: var(--bg-color);
+            color: var(--primary);
+            border: 2px dashed var(--primary);
+            padding: 15px;
+            border-radius: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+
+        #photoPreviewCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+            background: #fff7f8;
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #photoPreviewCanvas.dragging {
+            cursor: grabbing;
+        }
+
+        .image-editor-controls {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+            text-align: left;
+        }
+
+        .image-editor-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .image-editor-actions button,
+        .image-editor-controls select {
+            padding: 8px 10px;
+            border: 1px solid #f1cbd2;
+            border-radius: 10px;
+            background: white;
+            color: var(--text-color);
+            font: inherit;
+        }
+
+        .editor-slider {
+            display: grid;
+            grid-template-columns: 105px 1fr;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        @media (max-width: 600px) {
+            .modal {
+                padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+                    max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+                align-items: flex-start;
+            }
+
+            .modal-content {
+                width: 100%;
+                max-height: 100dvh;
+                padding: 16px;
+                border-radius: 20px;
+            }
+
+            .image-preview-frame {
+                width: min(100%, 320px, 32vh);
+                max-height: 24vh;
+            }
+
+            .backup-actions {
+                top: max(10px, env(safe-area-inset-top));
+                right: max(10px, env(safe-area-inset-right));
+                gap: 6px;
+            }
+
+            .collaboration-panel {
+                top: calc(max(10px, env(safe-area-inset-top)) + 54px);
+                right: max(10px, env(safe-area-inset-right));
+                width: min(300px, calc(100vw - 76px));
+            }
+
+            .cat-list-panel {
+                top: max(10px, env(safe-area-inset-top));
+                left: max(10px, env(safe-area-inset-left));
+                width: min(300px, calc(100vw - 76px));
+            }
+
+            .cat-list-panel.expanded {
+                width: min(360px, calc(100vw - 20px));
+            }
+
+            .backup-actions.popup-active {
+                display: none;
+            }
+
+            .backup-actions button {
+                min-height: 44px;
+                padding: 8px 10px;
+                font-size: 14px;
+            }
+
+            .backup-actions .backup-menu-toggle {
+                display: block;
+                width: 44px;
+                padding: 8px;
+                font-size: 20px;
+            }
+
+            .backup-actions:not(.expanded) #exportBackupBtn,
+            .backup-actions:not(.expanded) #importBackupBtn {
+                display: none;
+            }
+
+            .map-status {
+                top: calc(max(10px, env(safe-area-inset-top)) + 54px);
+                max-width: calc(100vw - 20px);
+                box-sizing: border-box;
+            }
+
+            .app-status {
+                top: calc(max(10px, env(safe-area-inset-top)) + 108px);
+            }
+
+            .fab-btn {
+                bottom: max(20px, env(safe-area-inset-bottom));
+                height: 56px;
+                min-height: 0;
+                padding: 8px 20px;
+                box-sizing: border-box;
+            }
+
+            .btn,
+            .image-editor-actions button,
+            .cat-record-actions button {
+                min-height: 44px;
+            }
+
+            .cat-record-actions {
+                gap: 6px;
+                margin-top: 8px;
+            }
+
+            .cat-record-actions button {
+                min-height: 40px;
+                border-radius: 10px;
+            }
+        }
+
+        @media (min-width: 400px) and (max-width: 600px) {
+            .image-preview-frame {
+                width: min(100%, 360px, 38vh);
+                max-height: 32vh;
+            }
+        }
+
+        textarea {
+            width: 100%;
+            border: 2px solid #eee;
+            border-radius: 15px;
+            padding: 15px;
+            font-family: inherit;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            resize: none;
+            height: 80px;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .cat-name-input {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+            padding: 12px 15px;
+            border: 2px solid #eee;
+            border-radius: 15px;
+            font: inherit;
+            outline: none;
+        }
+
+        .cat-name-input:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 15px;
+            border: none;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: #eee;
+            color: #777;
+        }
+
+        .btn-save {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-location {
+            width: 100%;
+            margin-bottom: 10px;
+            border: 1px solid #f1cbd2;
+            background: #fff7f8;
+            color: var(--text-color);
+        }
+
+        .map-selection {
+            display: none;
+            position: fixed;
+            left: 50%;
+            bottom: calc(max(20px, env(safe-area-inset-bottom)) + 68px);
+            transform: translateX(-50%);
+            align-items: center;
+            gap: 10px;
+            width: max-content;
+            max-width: calc(100vw - 24px);
+            padding: 8px 10px 8px 14px;
+            border-radius: 16px;
+            background: white;
+            box-shadow: 0 3px 14px rgba(0, 0, 0, 0.2);
+            z-index: 1200;
+            box-sizing: border-box;
+        }
+
+        .map-selection.active {
+            display: flex;
+        }
+
+        .map-selection span {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .map-selection button {
+            min-height: 40px;
+            padding: 6px 12px;
+            border: 0;
+            border-radius: 10px;
+            background: #eee;
+            color: var(--text-color);
+            font: inherit;
+            font-weight: 700;
+        }
+
+        /* Marker & Popup tuỳ chỉnh */
+        .cat-marker {
+            font-size: 35px;
+            filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.3));
+            animation: bounce 1s infinite alternate;
+        }
+
+        .leaflet-container .leaflet-marker-pane img.cat-marker-photo {
+            display: block;
+            width: 64px;
+            height: 64px;
+            box-sizing: border-box;
+            border: 3px solid white;
+            border-radius: 10px;
+            object-fit: cover;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+        }
+
+        .image-viewer {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+                max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+            box-sizing: border-box;
+            background: rgba(25, 18, 19, 0.9);
+        }
+
+        .image-viewer.active {
+            display: flex;
+        }
+
+        .image-viewer img {
+            max-width: 100%;
+            max-height: 88dvh;
+            object-fit: contain;
+        }
+
+        .image-viewer-close {
+            position: absolute;
+            top: max(12px, env(safe-area-inset-top));
+            right: max(12px, env(safe-area-inset-right));
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 50%;
+            background: white;
+            color: var(--text-color);
+            font-size: 26px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 600px) {
+            .cat-popup-list {
+                width: min(310px, calc(100vw - 76px));
+                max-height: min(42dvh, 360px);
+            }
+
+            .cat-popup-entry {
+                padding: 12px;
+            }
+
+            .popup-img {
+                height: min(150px, 18vh);
+            }
+
+            .cat-record-actions {
+                gap: 6px;
+                margin-top: 8px;
+            }
+
+            .cat-record-actions button {
+                min-height: 40px;
+                border-radius: 10px;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes bounce {
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+    <div class="map-status" id="mapStatus" role="status" aria-live="polite"></div>
+    <div class="map-status app-status" id="appStatus" role="status" aria-live="polite"></div>
+    <div class="image-viewer" id="imageViewer" role="dialog" aria-modal="true" aria-label="Xem ảnh quán">
+        <button type="button" class="image-viewer-close" id="imageViewerClose" aria-label="Đóng ảnh">×</button>
+        <img id="imageViewerImage" alt="Ảnh quán kích thước đầy đủ">
+    </div>
+    <section class="cat-list-panel" id="catListPanel" aria-label="Danh sách quán">
+        <button type="button" class="cat-list-toggle" id="catListToggle" aria-expanded="false"
+            aria-controls="catListContent">🍜 Danh sách quán (0)</button>
+        <div class="cat-list-content" id="catListContent">
+            <input type="search" class="cat-search-input" id="catSearchInput"
+                placeholder="Tìm tên, ghi chú, vị trí" autocomplete="off" aria-label="Tìm quán theo tên, ghi chú hoặc vị trí">
+            <div class="cat-filters">
+                <label for="catStatusFilter">Tình trạng
+                    <select id="catStatusFilter">
+                        <option value="">Tất cả</option>
+                        <option value="seen">Còn bán</option>
+                        <option value="helped">Đã chuyển chỗ</option>
+                        <option value="not_found">Đã đóng cửa</option>
+                        <option value="other">Khác</option>
+                        <option value="unknown">Chưa cập nhật</option>
+                    </select>
+                </label>
+                <label for="catDistanceFilter">Khoảng cách
+                    <select id="catDistanceFilter" aria-describedby="catLocationNote">
+                        <option value="">Tất cả</option>
+                        <option value="500">Trong 500 m</option>
+                        <option value="1000">Trong 1 km</option>
+                        <option value="3000">Trong 3 km</option>
+                        <option value="5000">Trong 5 km</option>
+                        <option value="10000">Trong 10 km</option>
+                    </select>
+                </label>
+            </div>
+            <div class="cat-filter-actions">
+                <button type="button" id="catLocationBtn">Dùng vị trí của tôi</button>
+                <button type="button" id="catClearFiltersBtn" disabled>Xóa bộ lọc</button>
+            </div>
+            <p class="cat-location-note" id="catLocationNote" role="status" aria-live="polite">Dùng vị trí của bạn để tìm quán gần nhất.</p>
+            <p class="cat-filter-summary" id="catFilterSummary" role="status" aria-live="polite"></p>
+            <div class="cat-search-results" id="catSearchResults" role="list"></div>
+        </div>
+    </section>
+    <section class="collaboration-panel" id="collaborationPanel" aria-label="Tài khoản cộng tác">
+        <button type="button" class="collaboration-toggle" id="collaborationToggle" aria-expanded="false"
+            aria-controls="collaborationContent">☁️ Đang lưu trên thiết bị</button>
+        <form class="collaboration-content" id="collaborationContent">
+            <p id="collaborationMessage" role="status" aria-live="polite"></p>
+            <input id="collaborationEmail" type="email" placeholder="Email" autocomplete="email" required>
+            <input id="collaborationPassword" type="password" placeholder="Mật khẩu" autocomplete="current-password">
+            <input id="collaborationNewPassword" type="password" placeholder="Mật khẩu mới khi nhận lời mời"
+                autocomplete="new-password" hidden>
+            <button type="submit" id="collaborationSignInBtn">Đăng nhập</button>
+            <button type="submit" id="collaborationCreateAccountBtn" hidden>Tạo tài khoản</button>
+            <button type="button" id="collaborationSignUpBtn">Chưa có tài khoản? Tạo tài khoản</button>
+            <button type="button" id="collaborationResetPasswordBtn">Quên mật khẩu?</button>
+            <button type="button" id="collaborationSetPasswordBtn" hidden>Đặt mật khẩu</button>
+            <button type="button" id="moderationQueueToggle" hidden>Chờ duyệt (0)</button>
+            <div class="moderation-queue" id="moderationQueue" hidden></div>
+            <button type="button" id="collaborationMigrateImagesBtn" hidden>Chuyển ảnh cũ lên Storage</button>
+            <button type="button" id="collaborationMigrateLocalBtn" class="collaboration-migrate-button" hidden></button>
+            <button type="button" id="collaborationSignOutBtn" hidden>Đăng xuất</button>
+        </form>
+    </section>
+    <div class="backup-actions">
+        <button type="button" class="backup-menu-toggle" id="backupMenuToggle" aria-label="Mở menu sao lưu"
+            aria-expanded="false">•••</button>
+        <button type="button" id="exportBackupBtn">Sao lưu</button>
+        <button type="button" id="importBackupBtn">Khôi phục</button>
+        <input type="file" id="backupFileInput" accept="application/json,.json">
+    </div>
+    <div class="map-selection" id="mapSelectionPrompt" role="status" aria-live="polite">
+        <span>Chạm vào bản đồ để đặt vị trí quán</span>
+        <button type="button" id="cancelMapSelectionBtn">Hủy</button>
+    </div>
+    <button class="fab-btn" id="openModalBtn">🍜 Thêm quán!</button>
+
+    <!-- Hộp thoại thêm dữ liệu -->
+    <div class="modal" id="addCatModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Thêm quán ngon! 🍜</h2>
+
+            <label class="file-upload-btn">
+                📸 Chụp/Tải ảnh lên
+                <!-- capture="environment" ưu tiên mở camera sau trên mobile -->
+                <input type="file" id="catPhoto" accept="image/*" capture="environment">
+            </label>
+            <div id="previewContainer" style="display:none; margin-bottom: 15px;">
+                <div class="image-preview-frame">
+                    <canvas id="photoPreviewCanvas" width="900" height="675"
+                        aria-label="Ảnh quán đã chỉnh sửa; kéo ảnh để điều chỉnh vùng cắt"></canvas>
+                </div>
+                <small>Kéo ảnh trực tiếp để chọn vùng cần giữ.</small>
+                <div class="image-editor-controls">
+                    <div class="image-editor-actions">
+                        <button type="button" id="rotateLeftBtn" aria-label="Xoay trái">↶ Xoay trái</button>
+                        <button type="button" id="rotateRightBtn" aria-label="Xoay phải">↷ Xoay phải</button>
+                        <button type="button" id="flipHorizontalBtn">Lật ngang</button>
+                        <button type="button" id="flipVerticalBtn">Lật dọc</button>
+                        <button type="button" id="resetImageEditBtn">Đặt lại</button>
+                    </div>
+                    <label class="editor-slider">
+                        <span>Phóng to</span>
+                        <input id="imageZoom" type="range" min="1" max="3" step="0.05" value="1"
+                            aria-label="Phóng to ảnh">
+                    </label>
+                    <label class="editor-slider">
+                        <span>Cắt ngang</span>
+                        <input id="imagePanX" type="range" min="-100" max="100" step="1" value="0"
+                            aria-label="Điều chỉnh vùng cắt ngang">
+                    </label>
+                    <label class="editor-slider">
+                        <span>Cắt dọc</span>
+                        <input id="imagePanY" type="range" min="-100" max="100" step="1" value="0"
+                            aria-label="Điều chỉnh vùng cắt dọc">
+                    </label>
+                    <label class="editor-slider">
+                        <span>Bộ lọc</span>
+                        <select id="imageFilter">
+                            <option value="none">Gốc</option>
+                            <option value="grayscale(100%)">Đen trắng</option>
+                            <option value="sepia(75%)">Hoài cổ</option>
+                            <option value="sepia(30%) saturate(130%)">Tông ấm</option>
+                            <option value="saturate(160%) contrast(110%)">Rực rỡ</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+
+            <input id="catName" class="cat-name-input" type="text" maxlength="40"
+                placeholder="Tên quán hoặc món (ví dụ: Phở Thìn)" autocomplete="off">
+            <input id="catLocationName" class="cat-name-input" type="text" maxlength="120"
+                placeholder="Tên vị trí nếu muốn tự đặt" autocomplete="off">
+            <small class="location-lookup-note">Để trống để tự tra cứu gần nhất qua OpenStreetMap. Tọa độ sẽ được gửi cho dịch vụ này.</small>
+            <textarea id="catNote" maxlength="2000" placeholder="Món ngon, giá khoảng bao nhiêu, giờ mở cửa..."></textarea>
+
+            <button type="button" class="btn btn-location" id="chooseMapLocationBtn">
+                📍 Chọn vị trí trên bản đồ
+            </button>
+
+            <div class="edit-location" id="editLocationFields">
+                <label>Vĩ độ
+                    <input type="number" id="editLatitude" min="-90" max="90" step="any">
+                </label>
+                <label>Kinh độ
+                    <input type="number" id="editLongitude" min="-180" max="180" step="any">
+                </label>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-cancel" id="closeModalBtn">Hủy</button>
+                <button class="btn btn-save" id="saveCatBtn">Lưu vị trí</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thư viện Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        const map = L.map('map', { zoomControl: false }).setView([21.0285, 105.8542], 15);
+        const mapStatus = document.getElementById('mapStatus');
+        const appStatus = document.getElementById('appStatus');
+        const storageKey = 'foodMapMarkers';
+        const supabaseUrl = ''; // Điền URL của project so-tay-do-an sau khi tạo.
+        const supabaseAnonKey = ''; // Điền publishable/anon key của project so-tay-do-an.
+        const isCloudConfigured = supabaseUrl.startsWith('https://') &&
+            !supabaseUrl.includes('YOUR_') && Boolean(supabaseAnonKey) && !supabaseAnonKey.includes('YOUR_');
+        const supabaseClient = isCloudConfigured && window.supabase
+            ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+            : null;
+        let tileErrors = 0;
+
+        const tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri, HERE, Garmin, (c) OpenStreetMap contributors, and the GIS user community'
+        });
+        tileLayer.on('loading', () => {
+            tileErrors = 0;
+        });
+        tileLayer.on('tileerror', () => {
+            tileErrors += 1;
+        });
+        tileLayer.on('load', () => {
+            if (tileErrors > 0) {
+                mapStatus.textContent = 'Không tải được bản đồ nền Esri. Hãy kiểm tra kết nối hoặc thử tải lại trang.';
+                mapStatus.style.display = 'block';
+            } else {
+                mapStatus.style.display = 'none';
+            }
+        });
+        tileLayer.addTo(map);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        map.on('popupopen', () => backupActions.classList.add('popup-active'));
+        map.on('popupclose', event => {
+            backupActions.classList.remove('popup-active');
+            stopObservingCatLocations(event.popup.getContent());
+            if (activeCatPopup === event.popup) activeCatPopup = null;
+        });
+
+        const catIcon = L.divIcon({
+            html: '<div class="cat-marker">🍜</div>',
+            className: 'custom-cat-icon',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+            popupAnchor: [0, -40]
+        });
+
+        function createCatIcon(cat) {
+            if (!cat.image) return catIcon;
+
+            const image = document.createElement('img');
+            image.className = 'cat-marker-photo';
+            image.src = getCatImageUrl(cat.image);
+            image.alt = 'Ảnh xem trước quán';
+            return L.divIcon({
+                html: image,
+                className: 'custom-cat-icon',
+                iconSize: [64, 64],
+                iconAnchor: [32, 64],
+                popupAnchor: [0, -64]
+            });
+        }
+
+        const modal = document.getElementById('addCatModal');
+        const photoInput = document.getElementById('catPhoto');
+        const photoPreviewCanvas = document.getElementById('photoPreviewCanvas');
+        const imageZoom = document.getElementById('imageZoom');
+        const imagePanX = document.getElementById('imagePanX');
+        const imagePanY = document.getElementById('imagePanY');
+        const imageFilter = document.getElementById('imageFilter');
+        const previewContainer = document.getElementById('previewContainer');
+        const saveButton = document.getElementById('saveCatBtn');
+        const modalTitle = document.getElementById('modalTitle');
+        const editLocationFields = document.getElementById('editLocationFields');
+        const editLatitude = document.getElementById('editLatitude');
+        const editLongitude = document.getElementById('editLongitude');
+        const openModalButton = document.getElementById('openModalBtn');
+        const exportBackupButton = document.getElementById('exportBackupBtn');
+        const importBackupButton = document.getElementById('importBackupBtn');
+        const backupFileInput = document.getElementById('backupFileInput');
+        const chooseMapLocationButton = document.getElementById('chooseMapLocationBtn');
+        const mapSelectionPrompt = document.getElementById('mapSelectionPrompt');
+        const backupActions = document.querySelector('.backup-actions');
+        const backupMenuToggle = document.getElementById('backupMenuToggle');
+        const catListPanel = document.getElementById('catListPanel');
+        const catListToggle = document.getElementById('catListToggle');
+        const catSearchInput = document.getElementById('catSearchInput');
+        const catSearchResults = document.getElementById('catSearchResults');
+        const catStatusFilter = document.getElementById('catStatusFilter');
+        const catDistanceFilter = document.getElementById('catDistanceFilter');
+        const catLocationButton = document.getElementById('catLocationBtn');
+        const catClearFiltersButton = document.getElementById('catClearFiltersBtn');
+        const catLocationNote = document.getElementById('catLocationNote');
+        const catFilterSummary = document.getElementById('catFilterSummary');
+        let catFilterLocation = null;
+        let catLocationMarker = null;
+        let catLocationLoading = false;
+        let catLocationError = '';
+        const collaborationPanel = document.getElementById('collaborationPanel');
+        const collaborationToggle = document.getElementById('collaborationToggle');
+        const collaborationContent = document.getElementById('collaborationContent');
+        const collaborationMessage = document.getElementById('collaborationMessage');
+        const collaborationEmail = document.getElementById('collaborationEmail');
+        const collaborationPassword = document.getElementById('collaborationPassword');
+        const collaborationNewPassword = document.getElementById('collaborationNewPassword');
+        const collaborationSignInButton = document.getElementById('collaborationSignInBtn');
+        const collaborationCreateAccountButton = document.getElementById('collaborationCreateAccountBtn');
+        const collaborationSignUpButton = document.getElementById('collaborationSignUpBtn');
+        const collaborationResetPasswordButton = document.getElementById('collaborationResetPasswordBtn');
+        const collaborationSetPasswordButton = document.getElementById('collaborationSetPasswordBtn');
+        const moderationQueueToggle = document.getElementById('moderationQueueToggle');
+        const moderationQueue = document.getElementById('moderationQueue');
+        const collaborationMigrateImagesButton = document.getElementById('collaborationMigrateImagesBtn');
+        const collaborationMigrateLocalButton = document.getElementById('collaborationMigrateLocalBtn');
+        const collaborationSignOutButton = document.getElementById('collaborationSignOutBtn');
+        const imageViewer = document.getElementById('imageViewer');
+        const imageViewerImage = document.getElementById('imageViewerImage');
+        const imageViewerClose = document.getElementById('imageViewerClose');
+        const previewContext = photoPreviewCanvas.getContext('2d');
+        let sourceImage = null;
+        let imageRotation = 0;
+        let imageFlipX = false;
+        let imageFlipY = false;
+        let currentImageDataUrl = "";
+        let pendingMapCat = null;
+        let currentUser = null;
+        let isSignedIn = false;
+        let isCatAdmin = false;
+        let pendingCatSubmissions = [];
+        let localCatsForMigration = [];
+        let localCatsMigrationComplete = false;
+        let cloudRenderTimer = null;
+        const authLinkType = new URLSearchParams(window.location.hash.slice(1)).get('type') ||
+            new URLSearchParams(window.location.search).get('type');
+        let passwordRecoveryMode = authLinkType === 'invite' || authLinkType === 'recovery';
+        let isSignUpMode = false;
+        let catsRealtimeChannel = null;
+        const locationNameCacheKey = 'foodMapLocationNamesV2';
+        const reverseGeocodeCache = readLocationNameCache();
+        const reverseGeocodePending = new Map();
+        const reverseGeocodeFailures = new Map();
+        const catLocationObservers = new WeakMap();
+        let reverseGeocodeQueue = Promise.resolve();
+        let lastReverseGeocodeAt = 0;
+        saveButton.disabled = true;
+        openModalButton.disabled = true;
+        exportBackupButton.disabled = true;
+        importBackupButton.disabled = true;
+
+        function closeImageViewer() {
+            imageViewer.classList.remove('active');
+            imageViewerImage.removeAttribute('src');
+        }
+
+        function openImageViewer(image) {
+            imageViewerImage.src = image.src;
+            imageViewer.classList.add('active');
+            imageViewerClose.focus();
+        }
+
+        function createCatPopupContent(groupCats) {
+            const content = document.createElement('div');
+            content.className = 'cat-popup-list';
+            content.setAttribute('role', 'region');
+            content.setAttribute('aria-label', 'Thông tin quán trên bản đồ');
+            groupCats.forEach(cat => {
+                const entry = document.createElement('div');
+                entry.className = 'cat-popup-entry';
+                const header = document.createElement('div');
+                header.className = 'cat-popup-header';
+                const titleRow = document.createElement('div');
+                titleRow.className = 'cat-popup-title-row';
+                const title = document.createElement('b');
+                title.className = 'cat-popup-title';
+                title.textContent = cat.name || 'Quán chưa đặt tên';
+                const statusValue = document.createElement('span');
+                statusValue.className = 'cat-status-value';
+                statusValue.dataset.status = cat.current_status || 'unknown';
+                statusValue.textContent = getCatStatusLabel(cat.current_status);
+                titleRow.append(title, statusValue);
+                header.appendChild(titleRow);
+                const location = document.createElement('div');
+                location.className = 'cat-popup-location';
+                setCatLocationLabel(location, cat, '📍 ');
+                header.appendChild(location);
+                entry.appendChild(header);
+
+                if (cat.image) {
+                    const image = document.createElement('img');
+                    image.src = getCatImageUrl(cat.image);
+                    image.className = 'popup-img';
+                    image.alt = `Ảnh quán ${cat.name || 'chưa đặt tên'}; chạm để xem ảnh lớn`;
+                    image.tabIndex = 0;
+                    image.setAttribute('role', 'button');
+                    image.addEventListener('click', () => openImageViewer(image));
+                    image.addEventListener('keydown', event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openImageViewer(image);
+                        }
+                    });
+                    entry.appendChild(image);
+                }
+
+                const note = document.createElement('div');
+                note.className = 'cat-popup-note';
+                const label = document.createElement('b');
+                label.className = 'cat-popup-note-label';
+                label.textContent = 'Ghi chú: ';
+                note.append(label, document.createTextNode(cat.note));
+                entry.appendChild(note);
+
+                if (cat.approximate) {
+                    const locationNote = document.createElement('div');
+                    locationNote.className = 'cat-popup-approximate';
+                    locationNote.textContent = 'Vị trí ước lượng (tâm bản đồ, không phải GPS).';
+                    entry.appendChild(locationNote);
+                }
+
+                const status = document.createElement('div');
+                status.className = 'cat-status';
+                if (cat.current_status === 'other' && cat.status_note) {
+                    const statusNote = document.createElement('p');
+                    statusNote.className = 'cat-status-note';
+                    statusNote.textContent = cat.status_note;
+                    status.appendChild(statusNote);
+                }
+                if (!isCloudConfigured || currentUser) {
+                    const statusActions = document.createElement('div');
+                    statusActions.className = 'cat-status-actions';
+                    [
+                        ['seen', 'Còn bán'],
+                        ['helped', 'Đã chuyển chỗ'],
+                        ['not_found', 'Đã đóng cửa'],
+                        ['other', 'Khác']
+                    ].forEach(([value, labelText]) => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.textContent = labelText;
+                        button.dataset.catStatus = value;
+                        button.dataset.catId = cat.id;
+                        button.setAttribute('aria-pressed', String(cat.current_status === value));
+                        statusActions.appendChild(button);
+                    });
+                    status.appendChild(statusActions);
+                    const otherForm = document.createElement('div');
+                    otherForm.className = 'cat-status-other-form';
+                    otherForm.hidden = true;
+                    const otherInput = document.createElement('textarea');
+                    otherInput.maxLength = 200;
+                    otherInput.placeholder = 'Nhập tình trạng khác (tối đa 200 ký tự)';
+                    otherInput.setAttribute('aria-label', 'Nội dung tình trạng khác');
+                    otherInput.dataset.catStatusNote = cat.id;
+                    otherInput.value = cat.current_status === 'other' ? cat.status_note || '' : '';
+                    const saveOtherButton = document.createElement('button');
+                    saveOtherButton.type = 'button';
+                    saveOtherButton.textContent = 'Lưu tình trạng';
+                    saveOtherButton.dataset.catStatusSubmit = cat.id;
+                    otherForm.append(otherInput, saveOtherButton);
+                    status.appendChild(otherForm);
+                } else {
+                    const loginNote = document.createElement('small');
+                    loginNote.className = 'cat-status-login-note';
+                    loginNote.textContent = 'Đăng nhập để cập nhật tình trạng.';
+                    status.appendChild(loginNote);
+                }
+                const statusUpdatedAt = cat.status_updated_at ? new Date(cat.status_updated_at) : null;
+                if (statusUpdatedAt && Number.isFinite(statusUpdatedAt.getTime())) {
+                    const updatedTime = document.createElement('div');
+                    updatedTime.className = 'cat-status-updated';
+                    updatedTime.textContent = `Cập nhật ${statusUpdatedAt.toLocaleString('vi-VN', {
+                        dateStyle: 'short',
+                        timeStyle: 'short'
+                    })}`;
+                    status.appendChild(updatedTime);
+                }
+                entry.appendChild(status);
+
+                if (!isCloudConfigured || canManageCat(cat)) {
+                    const actions = document.createElement('div');
+                    actions.className = 'cat-record-actions';
+                    const editButton = document.createElement('button');
+                    editButton.type = 'button';
+                    editButton.textContent = 'Sửa';
+                    editButton.dataset.catAction = 'edit';
+                    editButton.dataset.catId = cat.id;
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'button';
+                    deleteButton.textContent = 'Xóa';
+                    deleteButton.dataset.catAction = 'delete';
+                    deleteButton.dataset.catId = cat.id;
+                    actions.append(editButton, deleteButton);
+                    entry.appendChild(actions);
+                }
+                content.appendChild(entry);
+            });
+            observeCatLocations(content);
+            return content;
+        }
+
+        const markerGroups = new Map();
+        let activeCatPopup = null;
+        let cats = [];
+        let storageReady = false;
+        let editingCatId = null;
+        let database;
+
+        function createCatId() {
+            return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        }
+
+        const databasePromise = new Promise((resolve, reject) => {
+            const request = indexedDB.open('foodMapDatabase', 1);
+            request.onupgradeneeded = () => {
+                if (!request.result.objectStoreNames.contains('cats')) {
+                    request.result.createObjectStore('cats', { keyPath: 'id' });
+                }
+            };
+            request.onsuccess = () => {
+                database = request.result;
+                resolve(database);
+            };
+            request.onerror = () => reject(request.error || new Error('Không thể mở IndexedDB.'));
+            request.onblocked = () => reject(new Error('IndexedDB đang bị chặn bởi một tab khác.'));
+        });
+
+        function validateCats(data) {
+            if (!Array.isArray(data)) throw new Error('File sao lưu phải chứa danh sách quán.');
+            return data.map(cat => {
+                if (!cat || !Number.isFinite(cat.lat) || cat.lat < -90 || cat.lat > 90 ||
+                    !Number.isFinite(cat.lng) || cat.lng < -180 || cat.lng > 180 ||
+                    typeof cat.note !== 'string' ||
+                    (cat.image !== null && cat.image !== undefined && typeof cat.image !== 'string')) {
+                    throw new Error('Dữ liệu quán không hợp lệ; không có dữ liệu nào được nhập.');
+                }
+                return {
+                    id: typeof cat.id === 'string' && cat.id ? cat.id : createCatId(),
+                    lat: cat.lat,
+                    lng: cat.lng,
+                    name: typeof cat.name === 'string' ? cat.name.trim().slice(0, 40) : '',
+                    location_name: typeof cat.location_name === 'string' ? cat.location_name.trim().slice(0, 120) : '',
+                    note: cat.note,
+                    image: cat.image || null,
+                    approximate: Boolean(cat.approximate),
+                    current_status: ['seen', 'helped', 'not_found'].includes(cat.current_status)
+                        ? cat.current_status
+                        : cat.current_status === 'other' ? 'other' : 'unknown',
+                    status_note: typeof cat.status_note === 'string' ? cat.status_note.trim().slice(0, 200) : '',
+                    status_updated_at: typeof cat.status_updated_at === 'string' ? cat.status_updated_at : null,
+                    created_by: typeof cat.created_by === 'string' ? cat.created_by : null,
+                    updated_by: typeof cat.updated_by === 'string' ? cat.updated_by : null,
+                    updated_at: typeof cat.updated_at === 'string' ? cat.updated_at : null
+                };
+            });
+        }
+
+        function catFromCloudRow(row) {
+            return {
+                id: row.id,
+                lat: Number(row.lat),
+                lng: Number(row.lng),
+                name: row.name || '',
+                location_name: row.location_name || '',
+                note: row.note,
+                image: row.image || null,
+                approximate: Boolean(row.approximate),
+                current_status: row.current_status || 'unknown',
+                status_note: row.status_note || '',
+                status_updated_at: row.status_updated_at || null,
+                created_by: row.created_by || null,
+                updated_by: row.updated_by || null,
+                updated_at: row.updated_at || null
+            };
+        }
+
+        function getCatImageUrl(image) {
+            if (!image || image.startsWith('data:') || /^https?:\/\//i.test(image)) return image || '';
+            return supabaseClient.storage.from('cat-images').getPublicUrl(image).data.publicUrl;
+        }
+
+        function getCatStatusLabel(status) {
+            return ({
+                seen: 'Còn bán',
+                helped: 'Đã chuyển chỗ',
+                not_found: 'Đã đóng cửa',
+                other: 'Khác',
+                unknown: 'Chưa cập nhật'
+            })[status] || 'Chưa cập nhật';
+        }
+
+        async function uploadCatImage(image, catId, collection = 'cats') {
+            if (!currentUser) throw new Error('Hãy đăng nhập trước khi tải ảnh lên.');
+            const response = await fetch(image);
+            if (!response.ok) throw new Error(`Không thể đọc ảnh cần tải lên (${response.status}).`);
+            const blob = await response.blob();
+            const extensionByType = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/webp': 'webp'
+            };
+            const extension = extensionByType[blob.type];
+            if (!extension) throw new Error('Định dạng ảnh chưa được hỗ trợ; hãy chọn ảnh JPEG, PNG hoặc WebP.');
+            const path = `${currentUser.id}/${collection}/${catId}.${extension}`;
+            const { error } = await supabaseClient.storage.from('cat-images').upload(path, blob, {
+                cacheControl: '31536000',
+                contentType: blob.type,
+                upsert: true
+            });
+            if (error) throw error;
+            return path;
+        }
+
+        async function migrateLegacyCloudImages() {
+            if (!isCatAdmin) throw new Error('Chỉ admin mới có thể di chuyển ảnh cũ.');
+            const imagesToMigrate = cats.filter(cat => cat.image?.startsWith('data:'));
+            const { data: submissions, error: submissionsError } = await supabaseClient
+                .from('cat_submissions')
+                .select('id, name, image');
+            if (submissionsError) throw submissionsError;
+            const submissionsToMigrate = (submissions || []).filter(submission =>
+                submission.image?.startsWith('data:')
+            );
+            const totalImages = imagesToMigrate.length + submissionsToMigrate.length;
+            if (!totalImages) {
+                showAppStatus('Không còn ảnh dạng cũ trong dữ liệu quán chung.');
+                return;
+            }
+            if (!confirm(`Chuyển ${totalImages} ảnh cũ (gồm ảnh trên bản đồ và hàng chờ cũ) sang Supabase Storage? Ảnh chỉ được thay bằng đường dẫn sau khi tải lên thành công.`)) return;
+
+            collaborationMigrateImagesButton.disabled = true;
+            let migratedCount = 0;
+            try {
+                for (const cat of imagesToMigrate) {
+                    const path = await uploadCatImage(cat.image, cat.id);
+                    const { data, error } = await supabaseClient
+                        .from('cats')
+                        .update({ image: path })
+                        .eq('id', cat.id)
+                        .select('id');
+                    if (error) throw error;
+                    if ((data || []).length !== 1) {
+                        throw new Error(`Không đủ quyền cập nhật ảnh của quán ${cat.name || cat.id}.`);
+                    }
+                    cat.image = path;
+                    migratedCount += 1;
+                    showAppStatus(`Đã chuyển ${migratedCount}/${totalImages} ảnh lên Storage…`);
+                }
+                for (const submission of submissionsToMigrate) {
+                    const path = await uploadCatImage(submission.image, submission.id, 'submissions');
+                    const { data, error } = await supabaseClient
+                        .from('cat_submissions')
+                        .update({ image: path })
+                        .eq('id', submission.id)
+                        .select('id');
+                    if (error) throw error;
+                    if ((data || []).length !== 1) {
+                        throw new Error(`Không đủ quyền cập nhật ảnh bài chờ duyệt ${submission.name || submission.id}.`);
+                    }
+                    migratedCount += 1;
+                    showAppStatus(`Đã chuyển ${migratedCount}/${totalImages} ảnh lên Storage…`);
+                }
+                renderCatMarkers();
+                await refreshPendingSubmissions();
+                showAppStatus(`Đã chuyển ${migratedCount} ảnh sang Supabase Storage.`);
+            } catch (error) {
+                let refreshError = '';
+                try {
+                    await Promise.all([refreshCloudCats(), refreshPendingSubmissions()]);
+                } catch (reloadError) {
+                    refreshError = ` Không tải lại được danh sách mới nhất: ${reloadError.message}`;
+                }
+                throw new Error(
+                    `Đã chuyển ${migratedCount}/${totalImages} ảnh; ảnh còn lại vẫn được giữ nguyên. ` +
+                    `${error.message}${refreshError}`
+                );
+            } finally {
+                collaborationMigrateImagesButton.disabled = false;
+            }
+        }
+
+        function catToCloudRow(cat) {
+            return {
+                id: cat.id,
+                lat: cat.lat,
+                lng: cat.lng,
+                name: cat.name,
+                location_name: cat.location_name || '',
+                note: cat.note,
+                image: cat.image,
+                approximate: cat.approximate,
+                current_status: cat.current_status || 'unknown',
+                status_note: cat.status_note || '',
+                status_updated_at: cat.status_updated_at || null,
+                created_by: cat.created_by || currentUser?.id || null,
+                updated_by: currentUser?.id || cat.updated_by || null,
+                updated_at: new Date().toISOString()
+            };
+        }
+
+        function catContentChanged(first, second) {
+            return first.lat !== second.lat || first.lng !== second.lng || first.name !== second.name ||
+                first.location_name !== second.location_name || first.note !== second.note ||
+                first.image !== second.image || first.approximate !== second.approximate ||
+                first.current_status !== second.current_status || first.status_note !== second.status_note ||
+                first.status_updated_at !== second.status_updated_at;
+        }
+
+        function canManageCat(cat) {
+            return !isCloudConfigured || isCatAdmin || Boolean(currentUser && cat.created_by === currentUser.id);
+        }
+
+        function readStoredCats() {
+            return databasePromise.then(db => new Promise((resolve, reject) => {
+                const transaction = db.transaction('cats', 'readonly');
+                const request = transaction.objectStore('cats').getAll();
+                let result;
+                request.onsuccess = () => { result = request.result; };
+                transaction.oncomplete = () => resolve(result || []);
+                transaction.onerror = () => reject(transaction.error || new Error('Không thể đọc IndexedDB.'));
+                transaction.onabort = () => reject(transaction.error || new Error('Đọc IndexedDB đã bị hủy.'));
+            }));
+        }
+
+        function replaceStoredCats(records) {
+            return databasePromise.then(db => new Promise((resolve, reject) => {
+                const transaction = db.transaction('cats', 'readwrite');
+                const store = transaction.objectStore('cats');
+                store.clear();
+                records.forEach(cat => store.put(cat));
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error || new Error('Không thể ghi IndexedDB.'));
+                transaction.onabort = () => reject(transaction.error || new Error('Ghi IndexedDB đã bị hủy.'));
+            }));
+        }
+
+        function updateCollaborationControls() {
+            if (!isCloudConfigured) {
+                collaborationToggle.textContent = '☁️ Chưa cấu hình';
+                collaborationMessage.textContent = 'Ứng dụng đang lưu dữ liệu trên thiết bị này.';
+                collaborationSignInButton.disabled = true;
+                collaborationCreateAccountButton.disabled = true;
+                collaborationSignUpButton.disabled = true;
+                collaborationSignUpButton.hidden = true;
+                collaborationResetPasswordButton.disabled = true;
+                collaborationResetPasswordButton.hidden = true;
+                collaborationSetPasswordButton.disabled = true;
+                return;
+            }
+            if (!supabaseClient) {
+                collaborationToggle.textContent = '☁️ Không kết nối được';
+                collaborationMessage.textContent = 'Không tải được thư viện Supabase. Kiểm tra kết nối Internet rồi tải lại trang.';
+                collaborationSignInButton.disabled = true;
+                collaborationCreateAccountButton.disabled = true;
+                collaborationSignUpButton.disabled = true;
+                collaborationResetPasswordButton.disabled = true;
+                collaborationSetPasswordButton.disabled = true;
+                openModalButton.disabled = true;
+                importBackupButton.disabled = true;
+                return;
+            }
+
+            collaborationToggle.textContent = isCatAdmin
+                ? '☁️ Admin toàn quyền'
+                : isSignedIn
+                    ? '☁️ Đang đồng bộ'
+                : '☁️ Đăng nhập để thêm quán';
+            collaborationMessage.textContent = !currentUser
+                ? 'Đăng nhập hoặc tạo tài khoản để thêm quán và quản lý quán do bạn tạo. Quán mới sẽ hiện ngay trên bản đồ.'
+                : isCatAdmin
+                    ? `Đã đăng nhập admin: ${currentUser.email || 'quản trị viên'}.`
+                : isSignedIn
+                    ? `Đã đăng nhập: ${currentUser.email || 'người dùng'}. Bạn có thể thêm quán và sửa/xóa quán do mình tạo.`
+                    : `Tài khoản ${currentUser.email || ''} chưa đăng nhập.`;
+            collaborationEmail.hidden = Boolean(currentUser);
+            collaborationPassword.hidden = Boolean(currentUser) || passwordRecoveryMode;
+            collaborationSignInButton.hidden = Boolean(currentUser) || passwordRecoveryMode || isSignUpMode;
+            collaborationCreateAccountButton.hidden = Boolean(currentUser) || passwordRecoveryMode || !isSignUpMode;
+            collaborationSignUpButton.hidden = Boolean(currentUser) || passwordRecoveryMode;
+            collaborationResetPasswordButton.hidden = Boolean(currentUser) || passwordRecoveryMode || isSignUpMode;
+            collaborationSignUpButton.textContent = isSignUpMode
+                ? 'Đã có tài khoản? Đăng nhập'
+                : 'Chưa có tài khoản? Tạo tài khoản';
+            collaborationPassword.autocomplete = isSignUpMode ? 'new-password' : 'current-password';
+            collaborationPassword.placeholder = isSignUpMode
+                ? 'Mật khẩu mới (ít nhất 8 ký tự)'
+                : 'Mật khẩu';
+            collaborationNewPassword.hidden = !passwordRecoveryMode;
+            collaborationSetPasswordButton.hidden = !passwordRecoveryMode;
+            moderationQueueToggle.hidden = !isCatAdmin;
+            moderationQueueToggle.textContent = `Bài cũ chờ duyệt (${pendingCatSubmissions.length})`;
+            collaborationMigrateImagesButton.hidden = !isCatAdmin;
+            collaborationMigrateLocalButton.hidden = !localCatsForMigration.length || localCatsMigrationComplete;
+            collaborationMigrateLocalButton.disabled = !isSignedIn;
+            collaborationMigrateLocalButton.textContent = `Đưa ${localCatsForMigration.length} quán trên thiết bị lên dữ liệu chung`;
+            collaborationSignOutButton.hidden = !currentUser;
+            collaborationSignInButton.disabled = false;
+            collaborationCreateAccountButton.disabled = false;
+            collaborationSignUpButton.disabled = false;
+            collaborationResetPasswordButton.disabled = false;
+            collaborationSetPasswordButton.disabled = false;
+            openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
+            importBackupButton.disabled = !isSignedIn;
+            renderCatMarkers();
+        }
+
+        async function refreshEditorAccess() {
+            currentUser = null;
+            isSignedIn = false;
+            isCatAdmin = false;
+            if (supabaseClient) {
+                const { data: sessionResult, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError) throw sessionError;
+                currentUser = sessionResult.session?.user || null;
+                if (currentUser) {
+                    const { data, error } = await supabaseClient
+                        .from('cat_editors')
+                        .select('user_id, is_admin')
+                        .eq('user_id', currentUser.id)
+                        .maybeSingle();
+                    if (error) throw error;
+                    isSignedIn = true;
+                    isCatAdmin = Boolean(data?.is_admin);
+                }
+            }
+            updateCollaborationControls();
+        }
+
+        async function refreshCloudCats() {
+            const { data, error } = await supabaseClient
+                .from('cats')
+                .select('id, lat, lng, name, location_name, note, image, approximate, current_status, status_note, status_updated_at, created_by, updated_by, updated_at')
+                .order('updated_at', { ascending: false });
+            if (error) throw error;
+            cats = validateCats(data.map(catFromCloudRow));
+            renderCatMarkers();
+        }
+
+        function renderModerationQueue() {
+            stopObservingCatLocations(moderationQueue);
+            moderationQueue.replaceChildren();
+            moderationQueueToggle.textContent = `Bài cũ chờ duyệt (${pendingCatSubmissions.length})`;
+            if (!pendingCatSubmissions.length) {
+                const emptyMessage = document.createElement('p');
+                emptyMessage.textContent = 'Chưa có quán nào chờ duyệt.';
+                moderationQueue.appendChild(emptyMessage);
+                return;
+            }
+
+            pendingCatSubmissions.forEach(submission => {
+                const card = document.createElement('article');
+                card.className = 'submission-card';
+                const title = document.createElement('b');
+                title.textContent = submission.name || 'Quán chưa đặt tên';
+                card.appendChild(title);
+                const location = document.createElement('small');
+                setCatLocationLabel(location, submission);
+                card.appendChild(location);
+                const note = document.createElement('span');
+                note.textContent = submission.note || '';
+                card.appendChild(note);
+                if (submission.image) {
+                    const image = document.createElement('img');
+                    image.src = getCatImageUrl(submission.image);
+                    image.alt = `Ảnh đề xuất: ${submission.name || 'quán chưa đặt tên'}`;
+                    card.appendChild(image);
+                }
+
+                const actions = document.createElement('div');
+                actions.className = 'submission-actions';
+                ['approve', 'reject'].forEach(action => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.dataset.submissionAction = action;
+                    button.dataset.submissionId = submission.id;
+                    button.textContent = action === 'approve' ? 'Duyệt' : 'Từ chối';
+                    actions.appendChild(button);
+                });
+                card.appendChild(actions);
+                moderationQueue.appendChild(card);
+            });
+            observeCatLocations(moderationQueue);
+        }
+
+        async function refreshPendingSubmissions() {
+            if (!isCatAdmin) return;
+            const { data, error } = await supabaseClient
+                .from('cat_submissions')
+                .select('id, lat, lng, name, note, image, approximate, submitted_at')
+                .order('submitted_at', { ascending: true });
+            if (error) throw error;
+            pendingCatSubmissions = data || [];
+            renderModerationQueue();
+        }
+
+        async function moderateCatSubmission(action, submissionId) {
+            if (!isCatAdmin) throw new Error('Chỉ admin mới được duyệt bài gửi.');
+            const functionName = action === 'approve'
+                ? 'approve_cat_submission'
+                : 'reject_cat_submission';
+            const { error } = await supabaseClient.rpc(functionName, { p_submission_id: submissionId });
+            if (error) throw error;
+            await Promise.all([refreshPendingSubmissions(), refreshCloudCats()]);
+            showAppStatus(action === 'approve' ? 'Đã duyệt quán và đưa lên bản đồ chung.' : 'Đã từ chối bài gửi.');
+        }
+
+        function applyCloudCatChange(payload) {
+            if (payload.eventType === 'DELETE') {
+                const deletedId = payload.old?.id;
+                if (!deletedId || !cats.some(cat => cat.id === deletedId)) return;
+                cats = cats.filter(cat => cat.id !== deletedId);
+            } else if (payload.new?.id) {
+                const changedCat = catFromCloudRow(payload.new);
+                const existingIndex = cats.findIndex(cat => cat.id === changedCat.id);
+                if (existingIndex >= 0 && !catContentChanged(cats[existingIndex], changedCat)) return;
+                if (existingIndex >= 0) cats[existingIndex] = changedCat;
+                else cats.unshift(changedCat);
+                cats.sort((first, second) =>
+                    (second.updated_at || '').localeCompare(first.updated_at || '')
+                );
+            } else {
+                return;
+            }
+
+            clearTimeout(cloudRenderTimer);
+            cloudRenderTimer = setTimeout(renderCatMarkers, 75);
+        }
+
+        async function readLocalCatsForMigration() {
+            const storedCats = await readStoredCats();
+            if (storedCats.length) return validateCats(storedCats);
+            try {
+                const legacyData = localStorage.getItem(storageKey);
+                return legacyData ? validateCats(JSON.parse(legacyData)) : [];
+            } catch (error) {
+                console.error('Không thể đọc dữ liệu cũ để di chuyển lên đám mây:', error);
+                showAppStatus(`Không thể đọc dữ liệu quán trên thiết bị để di chuyển: ${error.message}`);
+                return [];
+            }
+        }
+
+        function subscribeToCloudCats() {
+            if (catsRealtimeChannel) supabaseClient.removeChannel(catsRealtimeChannel);
+            catsRealtimeChannel = supabaseClient
+                .channel('shared-cats-changes')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'cats' }, payload => {
+                    applyCloudCatChange(payload);
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'cat_submissions' }, () => {
+                    if (isCatAdmin) {
+                        refreshPendingSubmissions().catch(error => {
+                            console.error('Không thể tải danh sách quán chờ duyệt:', error);
+                            showAppStatus(`Không thể tải danh sách chờ duyệt: ${error.message}`);
+                        });
+                    }
+                })
+                .subscribe(status => {
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        showAppStatus('Kết nối đồng bộ trực tiếp bị gián đoạn. Hãy tải lại trang nếu dữ liệu chưa cập nhật.');
+                    }
+                });
+        }
+
+        function showCatPopup(content, latlng, options) {
+            if (activeCatPopup) {
+                activeCatPopup.remove();
+                activeCatPopup = null;
+            }
+            map.closePopup();
+            L.DomEvent.disableScrollPropagation(content);
+            activeCatPopup = L.popup(options).setLatLng(latlng).setContent(content);
+            activeCatPopup.openOn(map);
+            const popup = activeCatPopup;
+            setTimeout(() => {
+                if (activeCatPopup !== popup) return;
+                const popupElement = popup.getElement();
+                if (!popupElement) return;
+                const popupBounds = popupElement.getBoundingClientRect();
+                const mapBounds = map.getContainer().getBoundingClientRect();
+                const edgePadding = 8;
+                const horizontalOverflow = popupBounds.right > mapBounds.right - edgePadding
+                    ? popupBounds.right - (mapBounds.right - edgePadding)
+                    : popupBounds.left < mapBounds.left + edgePadding
+                        ? popupBounds.left - (mapBounds.left + edgePadding)
+                        : 0;
+                const verticalOverflow = popupBounds.bottom > mapBounds.bottom - edgePadding
+                    ? popupBounds.bottom - (mapBounds.bottom - edgePadding)
+                    : popupBounds.top < mapBounds.top + edgePadding
+                        ? popupBounds.top - (mapBounds.top + edgePadding)
+                        : 0;
+                if (horizontalOverflow || verticalOverflow) {
+                    map.panBy([horizontalOverflow, verticalOverflow], { animate: false });
+                }
+            }, 0);
+        }
+
+        function getCatPopupOptions() {
+            return {
+                minWidth: Math.min(280, window.innerWidth - 64),
+                maxWidth: Math.max(200, Math.min(380, window.innerWidth - 48))
+            };
+        }
+
+        function openSingleCatPopup(cat) {
+            showCatPopup(createCatPopupContent([cat]), [cat.lat, cat.lng], getCatPopupOptions());
+        }
+
+        function openCatGroupPopup(group) {
+            showCatPopup(createCatPopupContent(group.cats), group.marker.getLatLng(), getCatPopupOptions());
+        }
+
+        function openNearbyCatPopup(groups, latlng) {
+            const nearbyCats = groups.flatMap(group => group.cats);
+            showCatPopup(createCatPopupContent(nearbyCats), latlng, getCatPopupOptions());
+        }
+
+        function normalizeSearchText(value) {
+            return value.toLocaleLowerCase('vi')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/đ/g, 'd');
+        }
+
+        function readLocationNameCache() {
+            try {
+                const entries = JSON.parse(localStorage.getItem(locationNameCacheKey) || '[]');
+                return new Map(Array.isArray(entries) ? entries.filter(entry =>
+                    Array.isArray(entry) && typeof entry[0] === 'string' &&
+                    entry[1] && typeof entry[1].name === 'string' && entry[1].name.trim() && entry[1].name.length <= 120 &&
+                    typeof entry[1].baseName === 'string' && entry[1].baseName.trim() && entry[1].baseName.length <= 120
+                ).slice(-200) : []);
+            } catch (error) {
+                return new Map();
+            }
+        }
+
+        function getLocationCacheKey(lat, lng) {
+            return `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
+        }
+
+        function getCatLocationName(cat) {
+            const savedName = cat.location_name?.trim() || '';
+            const cached = reverseGeocodeCache.get(getLocationCacheKey(cat.lat, cat.lng));
+            return cached && (!savedName || savedName === cached.baseName) ? cached.name : savedName;
+        }
+
+        function formatCatLocation(cat) {
+            return `Vị trí: ${getCatLocationName(cat) || 'Chưa xác định địa điểm'}`;
+        }
+
+        function setCatLocationLabel(element, cat, prefix = 'Vị trí: ') {
+            const name = getCatLocationName(cat);
+            element.textContent = prefix + (name || 'Đang tìm tên địa điểm…');
+            if (name) element.title = name;
+            const cacheKey = getLocationCacheKey(cat.lat, cat.lng);
+            if (reverseGeocodeCache.has(cacheKey)) return;
+            element.dataset.locationKey = cacheKey;
+            element.dataset.locationLat = cat.lat;
+            element.dataset.locationLng = cat.lng;
+            element.dataset.locationPrefix = prefix;
+            element.dataset.locationSavedName = cat.location_name?.trim() || '';
+        }
+
+        async function resolveCatLocationLabel(element) {
+            const { locationLat, locationLng, locationPrefix, locationSavedName } = element.dataset;
+            try {
+                await lookupLocationName(Number(locationLat), Number(locationLng));
+                if (!element.isConnected) return;
+                const name = getCatLocationName({ lat: locationLat, lng: locationLng, location_name: locationSavedName });
+                element.textContent = locationPrefix + name;
+                element.title = name;
+            } catch (error) {
+                if (element.isConnected) element.textContent = locationPrefix + (locationSavedName || 'Chưa xác định địa điểm');
+            }
+        }
+
+        function stopObservingCatLocations(container) {
+            if (!container || typeof container !== 'object') return;
+            catLocationObservers.get(container)?.disconnect();
+            catLocationObservers.delete(container);
+        }
+
+        function observeCatLocations(container) {
+            stopObservingCatLocations(container);
+            const labels = container.querySelectorAll('[data-location-key]');
+            if (!labels.length) return;
+            if (!window.IntersectionObserver) {
+                labels.forEach(resolveCatLocationLabel);
+                return;
+            }
+            const observer = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    observer.unobserve(entry.target);
+                    resolveCatLocationLabel(entry.target);
+                });
+            });
+            catLocationObservers.set(container, observer);
+            labels.forEach(label => observer.observe(label));
+        }
+
+        function lookupLocationName(lat, lng) {
+            const cacheKey = getLocationCacheKey(lat, lng);
+            if (reverseGeocodeCache.has(cacheKey)) return Promise.resolve(reverseGeocodeCache.get(cacheKey).name);
+            if (reverseGeocodePending.has(cacheKey)) return reverseGeocodePending.get(cacheKey);
+            if ((reverseGeocodeFailures.get(cacheKey) || 0) > Date.now()) {
+                return Promise.reject(new Error('Chưa thể tra cứu lại tên địa điểm.'));
+            }
+
+            const lookup = reverseGeocodeQueue.then(async () => {
+                const waitTime = Math.max(0, 1100 - (Date.now() - lastReverseGeocodeAt));
+                if (waitTime) await new Promise(resolve => setTimeout(resolve, waitTime));
+                lastReverseGeocodeAt = Date.now();
+
+                const url = new URL('https://nominatim.openstreetmap.org/reverse');
+                url.search = new URLSearchParams({
+                    format: 'jsonv2',
+                    lat: String(lat),
+                    lon: String(lng),
+                    zoom: '18',
+                    addressdetails: '1'
+                });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                let result;
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'Accept-Language': 'vi' },
+                        signal: controller.signal
+                    });
+                    if (!response.ok) throw new Error(`OpenStreetMap trả về lỗi ${response.status}.`);
+                    result = await response.json();
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+                const address = result.address || {};
+                const locality = address.city || address.town || address.village ||
+                    address.municipality || address.county || address.state;
+                const area = address.suburb || address.neighbourhood || address.quarter ||
+                    address.city_district;
+                const road = address.road || address.pedestrian || address.footway;
+                const fallbackName = result.name?.trim() || result.display_name?.split(',').slice(0, 3).map(part => part.trim()).join(', ').trim();
+                const baseName = [...new Set([road, area, locality].filter(Boolean))].join(', ') || fallbackName;
+                const streetAddress = [String(address.house_number ?? '').trim(), road].filter(Boolean).join(' ');
+                const locationName = [...new Set([streetAddress, area, locality].filter(Boolean))].join(', ') || fallbackName;
+                if (!locationName) throw new Error('Không tìm thấy tên vị trí cho tọa độ này.');
+                const normalizedName = locationName.slice(0, 120);
+                reverseGeocodeCache.set(cacheKey, { name: normalizedName, baseName: (baseName || locationName).slice(0, 120) });
+                reverseGeocodeFailures.delete(cacheKey);
+                while (reverseGeocodeCache.size > 200) reverseGeocodeCache.delete(reverseGeocodeCache.keys().next().value);
+                try {
+                    localStorage.setItem(locationNameCacheKey, JSON.stringify([...reverseGeocodeCache]));
+                } catch (error) {
+                    // The in-memory cache still works when browser storage is unavailable.
+                }
+                return normalizedName;
+            });
+            const pending = lookup.catch(error => {
+                reverseGeocodeFailures.set(cacheKey, Date.now() + 60000);
+                throw error;
+            }).finally(() => reverseGeocodePending.delete(cacheKey));
+            reverseGeocodePending.set(cacheKey, pending);
+            reverseGeocodeQueue = pending.catch(() => {});
+            return pending;
+        }
+
+        function getFilteredCatResults() {
+            const query = normalizeSearchText(catSearchInput.value.trim());
+            const selectedStatus = catStatusFilter.value;
+            const radius = catDistanceFilter.value ? Number(catDistanceFilter.value) : null;
+            const results = cats.map(cat => ({
+                cat,
+                distance: catFilterLocation ? L.latLng(cat.lat, cat.lng).distanceTo(catFilterLocation) : null
+            })).filter(({ cat, distance }) =>
+                (!selectedStatus || (cat.current_status || 'unknown') === selectedStatus) &&
+                (!radius || (distance !== null && distance <= radius)) &&
+                normalizeSearchText(`${cat.name || 'Quán chưa đặt tên'} ${cat.note || ''} ${formatCatLocation(cat)}`).includes(query)
+            );
+            if (catFilterLocation) results.sort((a, b) => a.distance - b.distance);
+            return results;
+        }
+
+        function updateCatLocationControls() {
+            catLocationButton.disabled = catLocationLoading;
+            catLocationButton.textContent = catLocationLoading ? 'Đang lấy vị trí…' :
+                catFilterLocation ? 'Cập nhật vị trí' : 'Dùng vị trí của tôi';
+            catLocationNote.textContent = catLocationLoading ? 'Đang xác định vị trí của bạn…' :
+                catLocationError || (catFilterLocation
+                    ? 'Xếp gần nhất trước. Khoảng cách tính theo đường thẳng từ vị trí của bạn.'
+                    : 'Dùng vị trí của bạn để tìm quán gần nhất.');
+        }
+
+        function requestCatFilterLocation(setView = false) {
+            if (catLocationLoading) return;
+            catLocationLoading = true;
+            catLocationError = '';
+            updateCatLocationControls();
+            renderCatList();
+            map.locate({ setView, maxZoom: 16, timeout: 10000, maximumAge: 60000, enableHighAccuracy: true });
+        }
+
+        function renderCatList(results = getFilteredCatResults()) {
+            const hasFilters = Boolean(catSearchInput.value.trim() || catStatusFilter.value || catDistanceFilter.value);
+            catListToggle.textContent = hasFilters
+                ? `🍜 Danh sách quán (${results.length}/${cats.length})`
+                : `🍜 Danh sách quán (${cats.length})`;
+            catClearFiltersButton.disabled = !hasFilters;
+            catFilterSummary.textContent = catDistanceFilter.value && !catFilterLocation
+                ? 'Cần vị trí của bạn để lọc theo khoảng cách.'
+                : `Hiển thị ${results.length}/${cats.length} quán trên bản đồ.`;
+            stopObservingCatLocations(catSearchResults);
+            catSearchResults.replaceChildren();
+            if (!results.length) {
+                const emptyMessage = document.createElement('p');
+                emptyMessage.className = 'cat-search-empty';
+                emptyMessage.textContent = catDistanceFilter.value && !catFilterLocation
+                    ? catLocationLoading ? 'Đang chờ vị trí GPS…' : 'Bấm “Dùng vị trí của tôi” hoặc chọn “Tất cả” trong Khoảng cách để xem quán.'
+                    : cats.length ? 'Không tìm thấy quán phù hợp. Hãy thử mở rộng khoảng cách hoặc xóa bộ lọc.' : 'Chưa có quán nào được lưu.';
+                catSearchResults.appendChild(emptyMessage);
+                return;
+            }
+
+            results.forEach(({ cat, distance }) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'cat-search-result';
+                button.setAttribute('role', 'listitem');
+                const name = document.createElement('span');
+                name.textContent = cat.name || 'Quán chưa đặt tên';
+                button.appendChild(name);
+                const location = document.createElement('small');
+                location.className = 'cat-search-location';
+                setCatLocationLabel(location, cat);
+                button.appendChild(location);
+                const details = document.createElement('small');
+                const distanceLabel = distance === null ? '' : distance < 1000
+                    ? `${Math.round(distance)} m`
+                    : `${(distance / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} km`;
+                details.textContent = [getCatStatusLabel(cat.current_status), distanceLabel].filter(Boolean).join(' · ');
+                button.appendChild(details);
+                if (cat.note) {
+                    const note = document.createElement('small');
+                    note.textContent = cat.note;
+                    button.appendChild(note);
+                }
+                button.addEventListener('click', () => {
+                    catListPanel.classList.remove('expanded');
+                    catListToggle.setAttribute('aria-expanded', 'false');
+                    map.setView([cat.lat, cat.lng], Math.max(map.getZoom(), 17));
+                    openSingleCatPopup(cat);
+                });
+                catSearchResults.appendChild(button);
+            });
+            observeCatLocations(catSearchResults);
+        }
+
+        function openNearbyCatPopupIfNeeded(clickedGroup) {
+            const clickedElement = clickedGroup.marker.getElement();
+            if (!clickedElement) return false;
+            const clickedBounds = clickedElement.getBoundingClientRect();
+            const nearbyGroups = [...markerGroups.values()].filter(group => {
+                const element = group.marker.getElement();
+                if (!element) return false;
+                const bounds = element.getBoundingClientRect();
+                return clickedBounds.left < bounds.right && clickedBounds.right > bounds.left &&
+                    clickedBounds.top < bounds.bottom && clickedBounds.bottom > bounds.top;
+            });
+            if (nearbyGroups.length < 2) return false;
+
+            openNearbyCatPopup(nearbyGroups, clickedGroup.marker.getLatLng());
+            return true;
+        }
+
+        function addCatMarker(cat, openPopup = false) {
+            const key = `${cat.lat},${cat.lng}`;
+            let group = markerGroups.get(key);
+            if (group) {
+                group.cats.push(cat);
+                const previewCat = [...group.cats].reverse().find(item => item.image) || cat;
+                group.marker.setIcon(createCatIcon(previewCat));
+            } else {
+                const marker = L.marker([cat.lat, cat.lng], { icon: createCatIcon(cat) }).addTo(map);
+                group = { marker, cats: [cat] };
+                markerGroups.set(key, group);
+                marker.on('click', () => {
+                    if (!openNearbyCatPopupIfNeeded(group)) openCatGroupPopup(group);
+                });
+            }
+            if (openPopup) openCatGroupPopup(group);
+        }
+
+        function renderCatMarkers() {
+            map.closePopup();
+            markerGroups.forEach(group => group.marker.remove());
+            markerGroups.clear();
+            const results = getFilteredCatResults();
+            results.forEach(({ cat }) => addCatMarker(cat));
+            renderCatList(results);
+        }
+
+        async function initializeStorage() {
+            if (isCloudConfigured) {
+                if (!supabaseClient) throw new Error('Không tải được thư viện Supabase.');
+                const migrationStateKey = `foodMapMigratedToCloud_${supabaseUrl.split('.')[0].replace('https://', '')}`;
+                try {
+                    localCatsMigrationComplete = localStorage.getItem(migrationStateKey) === 'true';
+                } catch (error) {
+                    console.warn('Không thể đọc trạng thái di chuyển dữ liệu cũ:', error);
+                }
+                localCatsForMigration = await readLocalCatsForMigration();
+                await refreshEditorAccess();
+                await refreshCloudCats();
+                if (isCatAdmin) await refreshPendingSubmissions();
+                subscribeToCloudCats();
+                storageReady = true;
+                updateCollaborationControls();
+                return;
+            }
+            const storedCats = await readStoredCats();
+            if (storedCats.length) {
+                cats = validateCats(storedCats);
+                if (cats.some((cat, index) => cat.id !== storedCats[index].id)) {
+                    await replaceStoredCats(cats);
+                }
+                try {
+                    localStorage.removeItem(storageKey);
+                } catch (error) {
+                    console.warn('Không thể xóa bản dữ liệu cũ sau khi đã chuyển:', error);
+                }
+            } else {
+                let legacyData = null;
+                try {
+                    legacyData = localStorage.getItem(storageKey);
+                } catch (error) {
+                    console.warn('Không thể đọc dữ liệu cũ trong localStorage:', error);
+                }
+                if (legacyData) {
+                    cats = validateCats(JSON.parse(legacyData));
+                    await replaceStoredCats(cats);
+                    try {
+                        localStorage.removeItem(storageKey);
+                    } catch (error) {
+                        console.warn('Không thể xóa bản dữ liệu cũ sau khi đã chuyển:', error);
+                    }
+                }
+            }
+            renderCatMarkers();
+            storageReady = true;
+        }
+
+        async function persistCats(updatedCats) {
+            if (!storageReady) throw new Error('Kho dữ liệu chưa sẵn sàng.');
+            if (isCloudConfigured && !currentUser) {
+                throw new Error('Hãy đăng nhập để thêm hoặc quản lý quán.');
+            }
+            const validatedCats = validateCats(updatedCats);
+            if (supabaseClient) {
+                const previousById = new Map(cats.map(cat => [cat.id, cat]));
+                const changedCats = validatedCats
+                    .filter(cat => {
+                        const previous = previousById.get(cat.id);
+                        return !previous || catContentChanged(previous, cat);
+                    });
+                changedCats.forEach(cat => {
+                    const previous = previousById.get(cat.id);
+                    if (previous && !canManageCat(previous)) {
+                        throw new Error('Bạn chỉ có thể sửa quán do chính mình tạo.');
+                    }
+                });
+                const rowsToInsert = changedCats
+                    .filter(cat => !previousById.has(cat.id))
+                    .map(catToCloudRow);
+                const rowsToUpdate = changedCats
+                    .filter(cat => previousById.has(cat.id))
+                    .map(catToCloudRow);
+                const persistedImages = new Map();
+                const nextById = new Map(validatedCats.map(cat => [cat.id, cat]));
+                const idsToDelete = cats.filter(cat => !nextById.has(cat.id)).map(cat => cat.id);
+                const catsToDelete = cats.filter(cat => idsToDelete.includes(cat.id));
+                if (catsToDelete.some(cat => !canManageCat(cat))) {
+                    throw new Error('Bạn chỉ có thể xóa quán do chính mình tạo.');
+                }
+
+                if (rowsToInsert.length) {
+                    const cloudRows = await Promise.all(rowsToInsert.map(async row => {
+                        const cat = changedCats.find(item => item.id === row.id);
+                        const image = cat.image ? await uploadCatImage(cat.image, cat.id) : null;
+                        persistedImages.set(cat.id, image);
+                        return { ...row, image };
+                    }));
+                    const { data, error } = await supabaseClient.from('cats').insert(cloudRows).select('id');
+                    if (error) throw error;
+                    if ((data || []).length !== rowsToInsert.length) {
+                        throw new Error('Không thể thêm một hoặc nhiều bản ghi quán.');
+                    }
+                }
+                if (rowsToUpdate.length) {
+                    try {
+                        await Promise.all(rowsToUpdate.map(async row => {
+                            const cat = changedCats.find(item => item.id === row.id);
+                            const cloudRow = {
+                                ...row,
+                                image: cat.image && (cat.image.startsWith('data:') || /^https?:\/\//i.test(cat.image))
+                                    ? await uploadCatImage(cat.image, cat.id)
+                                    : cat.image
+                            };
+                            persistedImages.set(cat.id, cloudRow.image);
+                            const { data, error } = await supabaseClient
+                                .from('cats')
+                                .update(cloudRow)
+                                .eq('id', cloudRow.id)
+                                .select('id');
+                            if (error) throw error;
+                            if ((data || []).length !== 1) {
+                                throw new Error('Không đủ quyền cập nhật một hoặc nhiều bản ghi quán.');
+                            }
+                        }));
+                    } catch (error) {
+                        await refreshCloudCats();
+                        throw error;
+                    }
+                }
+                if (idsToDelete.length) {
+                    const { data, error } = await supabaseClient.from('cats').delete().in('id', idsToDelete).select('id');
+                    if (error) {
+                        await refreshCloudCats();
+                        throw error;
+                    }
+                    if ((data || []).length !== idsToDelete.length) {
+                        await refreshCloudCats();
+                        throw new Error('Không đủ quyền xóa một hoặc nhiều bản ghi quán.');
+                    }
+                }
+                const deletedIds = new Set(idsToDelete);
+                cats = cats.filter(cat => !deletedIds.has(cat.id));
+                changedCats.forEach(cat => {
+                    const existingIndex = cats.findIndex(existing => existing.id === cat.id);
+                    const previous = previousById.get(cat.id);
+                    const savedCat = {
+                        ...cat,
+                        image: persistedImages.has(cat.id) ? persistedImages.get(cat.id) : cat.image,
+                        created_by: previous?.created_by || currentUser.id,
+                        updated_by: currentUser.id,
+                        updated_at: new Date().toISOString()
+                    };
+                    if (existingIndex >= 0) cats[existingIndex] = savedCat;
+                    else cats.unshift(savedCat);
+                });
+                cats.sort((first, second) =>
+                    (second.updated_at || '').localeCompare(first.updated_at || '')
+                );
+                renderCatMarkers();
+                return;
+            }
+            await replaceStoredCats(validatedCats);
+            cats = validatedCats;
+            renderCatMarkers();
+        }
+
+        async function migrateLocalCatsToCloud() {
+            if (!supabaseClient || !isSignedIn) {
+                throw new Error('Bạn cần đăng nhập để đưa quán lên dữ liệu chung.');
+            }
+            if (!localCatsForMigration.length || localCatsMigrationComplete) return;
+            const confirmed = confirm(
+                `Tải ${localCatsForMigration.length} quán cùng ảnh và vị trí đang lưu trên thiết bị này lên bản đồ chung? ` +
+                'Các bản gốc trên thiết bị sẽ được giữ nguyên.'
+            );
+            if (!confirmed) return;
+
+            const importedCats = localCatsForMigration.map(cat => ({
+                ...cat,
+                id: createCatId(),
+                created_by: currentUser.id,
+                updated_by: currentUser.id
+            }));
+            await persistCats(cats.concat(importedCats));
+            const migrationStateKey = `foodMapMigratedToCloud_${supabaseUrl.split('.')[0].replace('https://', '')}`;
+            try {
+                localStorage.setItem(migrationStateKey, 'true');
+                localCatsMigrationComplete = true;
+                localCatsForMigration = [];
+                updateCollaborationControls();
+            } catch (error) {
+                console.error('Đã tải quán lên nhưng không thể lưu trạng thái di chuyển:', error);
+                showAppStatus('Đã tải dữ liệu lên. Không lưu được trạng thái di chuyển trên thiết bị này; đừng chạy di chuyển lần nữa để tránh bản trùng.');
+                return;
+            }
+            showAppStatus(`Đã đưa ${importedCats.length} quán lên dữ liệu chung. Bản gốc trên thiết bị vẫn được giữ.`);
+        }
+
+        async function saveCatAt(lat, lng, name, note, approximate, image = currentImageDataUrl, locationName = '') {
+            let locationLookupWarning = '';
+            if (!locationName.trim()) {
+                try {
+                    locationName = await lookupLocationName(lat, lng);
+                } catch (error) {
+                    console.warn('Không thể tra cứu tên vị trí từ OpenStreetMap:', error);
+                    locationLookupWarning = 'Không tra cứu được tên vị trí qua OpenStreetMap; quán vẫn được lưu bằng tọa độ.';
+                }
+            }
+            const cat = {
+                id: createCatId(),
+                lat,
+                lng,
+                name,
+                location_name: locationName,
+                note,
+                image: image || null,
+                approximate,
+                current_status: 'seen',
+                status_updated_at: new Date().toISOString()
+            };
+            if (isCloudConfigured) {
+                await persistCats(cats.concat(cat));
+                showAppStatus(locationLookupWarning || 'Đã thêm quán lên bản đồ chung.');
+                map.setView([lat, lng], 17);
+                resetAndCloseModal();
+                return locationLookupWarning;
+            }
+            await persistCats(cats.concat(cat));
+            const group = markerGroups.get(`${lat},${lng}`);
+            if (group) openCatGroupPopup(group);
+            map.setView([lat, lng], 17);
+            resetAndCloseModal();
+            return locationLookupWarning;
+        }
+
+        map.on('click', async event => {
+            if (!pendingMapCat) return;
+
+            const selectedCat = pendingMapCat;
+            try {
+                const locationLookupWarning = await saveCatAt(
+                    event.latlng.lat,
+                    event.latlng.lng,
+                    selectedCat.name,
+                    selectedCat.note,
+                    false,
+                    selectedCat.image,
+                    selectedCat.location_name
+                );
+                pendingMapCat = null;
+                mapSelectionPrompt.classList.remove('active');
+                openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
+                if (locationLookupWarning) showAppStatus(locationLookupWarning);
+                else if (!isCloudConfigured) clearAppStatus();
+            } catch (error) {
+                console.error('Không thể lưu quán tại vị trí đã chọn:', error);
+                showAppStatus(`Không thể lưu vị trí: ${error.message}`);
+            }
+        });
+
+        function getImageLayout() {
+            const canvasWidth = photoPreviewCanvas.width;
+            const canvasHeight = photoPreviewCanvas.height;
+            const isSideways = imageRotation % 180 !== 0;
+            const rotatedWidth = isSideways ? sourceImage.naturalHeight : sourceImage.naturalWidth;
+            const rotatedHeight = isSideways ? sourceImage.naturalWidth : sourceImage.naturalHeight;
+            const scale = Math.max(canvasWidth / rotatedWidth, canvasHeight / rotatedHeight) * Number(imageZoom.value);
+            return {
+                canvasWidth,
+                canvasHeight,
+                rotatedWidth: rotatedWidth * scale,
+                rotatedHeight: rotatedHeight * scale,
+                drawWidth: sourceImage.naturalWidth * scale,
+                drawHeight: sourceImage.naturalHeight * scale
+            };
+        }
+
+        function renderImagePreview() {
+            if (!sourceImage) return;
+
+            const { canvasWidth, canvasHeight, rotatedWidth, rotatedHeight, drawWidth, drawHeight } = getImageLayout();
+            const offsetX = (canvasWidth - rotatedWidth) * Number(imagePanX.value) / 200;
+            const offsetY = (canvasHeight - rotatedHeight) * Number(imagePanY.value) / 200;
+
+            previewContext.clearRect(0, 0, canvasWidth, canvasHeight);
+            previewContext.fillStyle = '#fff7f8';
+            previewContext.fillRect(0, 0, canvasWidth, canvasHeight);
+            previewContext.save();
+            previewContext.filter = imageFilter.value;
+            previewContext.translate(canvasWidth / 2 + offsetX, canvasHeight / 2 + offsetY);
+            previewContext.rotate(imageRotation * Math.PI / 180);
+            previewContext.scale(imageFlipX ? -1 : 1, imageFlipY ? -1 : 1);
+            previewContext.drawImage(sourceImage, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+            previewContext.restore();
+        }
+
+        let imageDrag = null;
+        photoPreviewCanvas.addEventListener('pointerdown', event => {
+            if (!sourceImage || event.button !== 0) return;
+            imageDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+            photoPreviewCanvas.setPointerCapture(event.pointerId);
+            photoPreviewCanvas.classList.add('dragging');
+            event.preventDefault();
+        });
+        photoPreviewCanvas.addEventListener('pointermove', event => {
+            if (!imageDrag || event.pointerId !== imageDrag.pointerId) return;
+
+            const rect = photoPreviewCanvas.getBoundingClientRect();
+            const { canvasWidth, canvasHeight, rotatedWidth, rotatedHeight } = getImageLayout();
+            const deltaX = (event.clientX - imageDrag.x) * photoPreviewCanvas.width / rect.width;
+            const deltaY = (event.clientY - imageDrag.y) * photoPreviewCanvas.height / rect.height;
+
+            if (rotatedWidth > canvasWidth) {
+                imagePanX.value = String(Math.max(-100, Math.min(100,
+                    Number(imagePanX.value) + deltaX * 200 / (canvasWidth - rotatedWidth))));
+            }
+            if (rotatedHeight > canvasHeight) {
+                imagePanY.value = String(Math.max(-100, Math.min(100,
+                    Number(imagePanY.value) + deltaY * 200 / (canvasHeight - rotatedHeight))));
+            }
+
+            imageDrag.x = event.clientX;
+            imageDrag.y = event.clientY;
+            renderImagePreview();
+            event.preventDefault();
+        });
+        function stopImageDrag(event) {
+            if (!imageDrag || (event && event.pointerId !== imageDrag.pointerId)) return;
+            imageDrag = null;
+            photoPreviewCanvas.classList.remove('dragging');
+        }
+        photoPreviewCanvas.addEventListener('pointerup', stopImageDrag);
+        photoPreviewCanvas.addEventListener('pointercancel', stopImageDrag);
+        photoPreviewCanvas.addEventListener('lostpointercapture', stopImageDrag);
+
+        function resetImageEditor() {
+            imageRotation = 0;
+            imageFlipX = false;
+            imageFlipY = false;
+            imageZoom.value = '1';
+            imagePanX.value = '0';
+            imagePanY.value = '0';
+            imageFilter.value = 'none';
+            if (sourceImage) {
+                renderImagePreview();
+            } else {
+                previewContext.clearRect(0, 0, photoPreviewCanvas.width, photoPreviewCanvas.height);
+            }
+        }
+
+        function showAppStatus(message) {
+            appStatus.textContent = message;
+            appStatus.style.display = 'block';
+        }
+
+        function clearAppStatus() {
+            appStatus.textContent = '';
+            appStatus.style.display = 'none';
+        }
+
+        function loadImageForEditing(dataUrl) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = () => reject(new Error('Không thể mở ảnh đã lưu.'));
+                image.src = getCatImageUrl(dataUrl);
+            });
+        }
+
+        async function openEditModal(catId) {
+            const cat = cats.find(item => item.id === catId);
+            if (!cat) return;
+            if (!canManageCat(cat)) throw new Error('Bạn chỉ có thể sửa quán do chính mình tạo.');
+
+            editingCatId = cat.id;
+            modalTitle.textContent = 'Sửa thông tin quán';
+            saveButton.textContent = 'Lưu thay đổi';
+            chooseMapLocationButton.style.display = 'none';
+            document.getElementById('catName').value = cat.name || '';
+            document.getElementById('catLocationName').value = getCatLocationName(cat);
+            document.getElementById('catNote').value = cat.note;
+            editLatitude.value = String(cat.lat);
+            editLongitude.value = String(cat.lng);
+            editLocationFields.classList.add('active');
+            resetImageEditor();
+            sourceImage = null;
+            currentImageDataUrl = cat.image || '';
+            previewContainer.style.display = 'none';
+            if (cat.image) {
+                try {
+                    sourceImage = await loadImageForEditing(cat.image);
+                    resetImageEditor();
+                    previewContainer.style.display = 'block';
+                } catch (error) {
+                    console.error('Không thể mở ảnh đã lưu để chỉnh sửa:', error);
+                    showAppStatus(error.message);
+                }
+            }
+            modal.classList.add('active');
+        }
+
+        async function deleteCat(catId) {
+            const cat = cats.find(item => item.id === catId);
+            if (cat && !canManageCat(cat)) throw new Error('Bạn chỉ có thể xóa quán do chính mình tạo.');
+            if (!cat || !confirm('Bạn có chắc muốn xóa dấu quán này?')) return;
+            await persistCats(cats.filter(item => item.id !== catId));
+        }
+
+        async function updateCatStatus(catId, status, statusNote = '') {
+            if (!['seen', 'helped', 'not_found', 'other'].includes(status)) {
+                throw new Error('Tình trạng quán không hợp lệ.');
+            }
+            const normalizedNote = status === 'other' ? statusNote.trim() : '';
+            if (status === 'other' && (!normalizedNote || normalizedNote.length > 200)) {
+                throw new Error('Nhập nội dung tình trạng khác, tối đa 200 ký tự.');
+            }
+            const cat = cats.find(item => item.id === catId);
+            if (!cat) throw new Error('Không tìm thấy bản ghi quán.');
+            const statusUpdatedAt = new Date().toISOString();
+            if (isCloudConfigured) {
+                if (!currentUser) throw new Error('Hãy đăng nhập để cập nhật tình trạng quán.');
+                const { error } = await supabaseClient.rpc('report_cat_status', {
+                    p_cat_id: catId,
+                    p_status: status,
+                    p_status_note: normalizedNote
+                });
+                if (error) throw error;
+                await refreshCloudCats();
+            } else {
+                await persistCats(cats.map(item => item.id === catId
+                    ? {
+                        ...item,
+                        current_status: status,
+                        status_note: normalizedNote,
+                        status_updated_at: statusUpdatedAt
+                    }
+                    : item));
+            }
+            const updatedCat = cats.find(item => item.id === catId);
+            if (updatedCat && getFilteredCatResults().some(({ cat }) => cat.id === catId)) openSingleCatPopup(updatedCat);
+            showAppStatus(`Đã cập nhật tình trạng: ${getCatStatusLabel(status)}.`);
+        }
+
+        map.getContainer().addEventListener('click', async event => {
+            const statusButton = event.target.closest('button[data-cat-status]');
+            if (statusButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const popupEntry = statusButton.closest('.cat-popup-entry');
+                if (statusButton.dataset.catStatus === 'other') {
+                    const otherForm = popupEntry.querySelector('.cat-status-other-form');
+                    otherForm.hidden = false;
+                    otherForm.querySelector('textarea').focus();
+                    return;
+                }
+                const statusButtons = [...popupEntry.querySelectorAll('button[data-cat-status], button[data-cat-status-submit]')];
+                statusButtons.forEach(button => { button.disabled = true; });
+                try {
+                    await updateCatStatus(statusButton.dataset.catId, statusButton.dataset.catStatus);
+                } catch (error) {
+                    console.error('Không thể cập nhật tình trạng quán:', error);
+                    showAppStatus(`Không thể cập nhật tình trạng: ${error.message}`);
+                    statusButtons.forEach(button => { button.disabled = false; });
+                }
+                return;
+            }
+            const statusSubmitButton = event.target.closest('button[data-cat-status-submit]');
+            if (statusSubmitButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const popupEntry = statusSubmitButton.closest('.cat-popup-entry');
+                const statusButtons = [...popupEntry.querySelectorAll('button[data-cat-status], button[data-cat-status-submit]')];
+                const statusNote = popupEntry.querySelector(`textarea[data-cat-status-note="${statusSubmitButton.dataset.catStatusSubmit}"]`).value;
+                statusButtons.forEach(button => { button.disabled = true; });
+                try {
+                    await updateCatStatus(statusSubmitButton.dataset.catStatusSubmit, 'other', statusNote);
+                } catch (error) {
+                    console.error('Không thể cập nhật tình trạng quán:', error);
+                    showAppStatus(`Không thể cập nhật tình trạng: ${error.message}`);
+                    statusButtons.forEach(button => { button.disabled = false; });
+                }
+                return;
+            }
+            const button = event.target.closest('button[data-cat-action]');
+            if (!button) return;
+            event.preventDefault();
+            event.stopPropagation();
+            try {
+                if (button.dataset.catAction === 'edit') {
+                    await openEditModal(button.dataset.catId);
+                } else if (button.dataset.catAction === 'delete') {
+                    await deleteCat(button.dataset.catId);
+                }
+            } catch (error) {
+                console.error('Không thể cập nhật dấu quán:', error);
+                showAppStatus(`Không thể cập nhật dữ liệu: ${error.message}`);
+            }
+        });
+
+        openModalButton.onclick = () => {
+            editingCatId = null;
+            modalTitle.textContent = 'Thêm quán ngon! 🍜';
+            saveButton.textContent = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
+            chooseMapLocationButton.style.display = 'block';
+            editLocationFields.classList.remove('active');
+            document.getElementById('catName').value = '';
+            document.getElementById('catLocationName').value = '';
+            document.getElementById('catNote').value = '';
+            sourceImage = null;
+            currentImageDataUrl = '';
+            previewContainer.style.display = 'none';
+            resetImageEditor();
+            modal.classList.add('active');
+        };
+        chooseMapLocationButton.onclick = () => {
+            try {
+                currentImageDataUrl = sourceImage ? photoPreviewCanvas.toDataURL('image/jpeg', 0.9) : '';
+                pendingMapCat = {
+                    name: document.getElementById('catName').value.trim() || 'Quán chưa đặt tên',
+                    location_name: document.getElementById('catLocationName').value.trim(),
+                    note: document.getElementById('catNote').value || 'Một quán ngon chưa có ghi chú 🍜',
+                    image: currentImageDataUrl
+                };
+                resetAndCloseModal();
+                openModalButton.disabled = true;
+                mapSelectionPrompt.classList.add('active');
+                map.closePopup();
+            } catch (error) {
+                console.error('Không thể chuẩn bị ảnh quán:', error);
+                showAppStatus(`Không thể xử lý ảnh: ${error.message}`);
+            }
+        };
+        document.getElementById('cancelMapSelectionBtn').onclick = () => {
+            pendingMapCat = null;
+            mapSelectionPrompt.classList.remove('active');
+            openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
+        };
+        L.DomEvent.disableClickPropagation(collaborationPanel);
+        collaborationToggle.onclick = () => {
+            const expanded = collaborationPanel.classList.toggle('expanded');
+            collaborationToggle.setAttribute('aria-expanded', String(expanded));
+        };
+        function validateCollaborationEmail() {
+            collaborationEmail.value = collaborationEmail.value.trim();
+            collaborationEmail.setCustomValidity(!collaborationEmail.value
+                ? 'Vui lòng nhập email.'
+                : collaborationEmail.validity.typeMismatch
+                    ? 'Vui lòng nhập email đúng định dạng.'
+                    : '');
+            if (!collaborationEmail.reportValidity()) {
+                collaborationEmail.focus();
+                return null;
+            }
+            return collaborationEmail.value;
+        }
+        collaborationEmail.addEventListener('input', () => collaborationEmail.setCustomValidity(''));
+        collaborationContent.onsubmit = async event => {
+            event.preventDefault();
+            if (!supabaseClient) return;
+            const email = validateCollaborationEmail();
+            if (!email) return;
+            collaborationSignInButton.disabled = true;
+            collaborationCreateAccountButton.disabled = true;
+            try {
+                if (isSignUpMode) {
+                    const password = collaborationPassword.value;
+                    if (password.length < 8) {
+                        collaborationMessage.textContent = 'Mật khẩu cần có ít nhất 8 ký tự.';
+                        return;
+                    }
+                    const { data, error } = await supabaseClient.auth.signUp({
+                        email,
+                        password,
+                        options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
+                    });
+                    if (error) throw error;
+                    if (data.session) {
+                        await refreshEditorAccess();
+                        await refreshCloudCats();
+                        collaborationMessage.textContent = 'Đã tạo tài khoản và đăng nhập. Bạn có thể thêm quán lên bản đồ.';
+                    } else {
+                        isSignUpMode = false;
+                        updateCollaborationControls();
+                        collaborationMessage.textContent = 'Đã tạo tài khoản. Hãy kiểm tra email để xác nhận, sau đó đăng nhập.';
+                    }
+                } else {
+                    const { error } = await supabaseClient.auth.signInWithPassword({
+                        email,
+                        password: collaborationPassword.value
+                    });
+                    if (error) throw error;
+                    await refreshEditorAccess();
+                    await refreshCloudCats();
+                    if (isCatAdmin) await refreshPendingSubmissions();
+                    collaborationPassword.value = '';
+                }
+            } catch (error) {
+                console.error(isSignUpMode ? 'Không thể tạo tài khoản:' : 'Không thể đăng nhập cộng tác:', error);
+                collaborationMessage.textContent = isSignUpMode
+                    ? `Tạo tài khoản thất bại: ${error.message}`
+                    : `Đăng nhập thất bại: ${error.message}`;
+            } finally {
+                collaborationSignInButton.disabled = false;
+                collaborationCreateAccountButton.disabled = false;
+            }
+        };
+        collaborationSignUpButton.onclick = () => {
+            isSignUpMode = !isSignUpMode;
+            collaborationPassword.value = '';
+            updateCollaborationControls();
+            collaborationMessage.textContent = isSignUpMode
+                ? 'Nhập email và mật khẩu mới để tạo tài khoản.'
+                : 'Nhập email và mật khẩu để đăng nhập.';
+            collaborationPassword.focus();
+        };
+        collaborationResetPasswordButton.onclick = async () => {
+            if (!supabaseClient) return;
+            const email = validateCollaborationEmail();
+            if (!email) return;
+            collaborationResetPasswordButton.disabled = true;
+            try {
+                const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}${window.location.pathname}`
+                });
+                if (error) throw error;
+                collaborationMessage.textContent = 'Nếu email này có tài khoản, sẽ có thư đặt lại mật khẩu. Hãy kiểm tra hộp thư đến và thư rác.';
+            } catch (error) {
+                console.error('Không thể gửi email đặt lại mật khẩu:', error);
+                collaborationMessage.textContent = `Không thể gửi email đặt lại mật khẩu: ${error.message}`;
+            } finally {
+                collaborationResetPasswordButton.disabled = false;
+            }
+        };
+        collaborationSetPasswordButton.onclick = async () => {
+            if (!supabaseClient) return;
+            const password = collaborationNewPassword.value;
+            if (password.length < 8) {
+                collaborationMessage.textContent = 'Mật khẩu mới cần có ít nhất 8 ký tự.';
+                return;
+            }
+            collaborationSetPasswordButton.disabled = true;
+            try {
+                const { error } = await supabaseClient.auth.updateUser({ password });
+                if (error) throw error;
+                passwordRecoveryMode = false;
+                collaborationNewPassword.value = '';
+                await refreshEditorAccess();
+                collaborationMessage.textContent = 'Đã đặt mật khẩu. Bạn có thể sử dụng tài khoản được mời.';
+            } catch (error) {
+                console.error('Không thể đặt mật khẩu:', error);
+                collaborationMessage.textContent = `Không thể đặt mật khẩu: ${error.message}`;
+            } finally {
+                collaborationSetPasswordButton.disabled = false;
+            }
+        };
+        collaborationMigrateLocalButton.onclick = async () => {
+            collaborationMigrateLocalButton.disabled = true;
+            try {
+                await migrateLocalCatsToCloud();
+            } catch (error) {
+                console.error('Không thể di chuyển quán lên dữ liệu chung:', error);
+                collaborationMessage.textContent = `Không thể đưa dữ liệu lên: ${error.message}`;
+            } finally {
+                collaborationMigrateLocalButton.disabled = !isSignedIn;
+            }
+        };
+        collaborationSignOutButton.onclick = async () => {
+            if (!supabaseClient) return;
+            try {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) throw error;
+                currentUser = null;
+                isSignedIn = false;
+                isCatAdmin = false;
+                pendingCatSubmissions = [];
+                updateCollaborationControls();
+            } catch (error) {
+                console.error('Không thể đăng xuất:', error);
+                collaborationMessage.textContent = `Không thể đăng xuất: ${error.message}`;
+            }
+        };
+        moderationQueueToggle.onclick = async () => {
+            if (!isCatAdmin) return;
+            moderationQueue.hidden = !moderationQueue.hidden;
+            moderationQueueToggle.setAttribute('aria-expanded', String(!moderationQueue.hidden));
+            if (!moderationQueue.hidden) {
+                moderationQueueToggle.disabled = true;
+                try {
+                    await refreshPendingSubmissions();
+                } catch (error) {
+                    console.error('Không thể tải danh sách quán chờ duyệt:', error);
+                    showAppStatus(`Không thể tải danh sách chờ duyệt: ${error.message}`);
+                } finally {
+                    moderationQueueToggle.disabled = false;
+                }
+            }
+        };
+        moderationQueue.addEventListener('click', async event => {
+            const button = event.target.closest('button[data-submission-action]');
+            if (!button) return;
+            if (button.dataset.submissionAction === 'reject' &&
+                !confirm('Từ chối và xóa bài gửi quán này?')) return;
+            const submissionId = button.dataset.submissionId;
+            const actionButtons = [...moderationQueue.querySelectorAll('button[data-submission-id]')]
+                .filter(actionButton => actionButton.dataset.submissionId === submissionId);
+            actionButtons.forEach(actionButton => { actionButton.disabled = true; });
+            try {
+                await moderateCatSubmission(button.dataset.submissionAction, submissionId);
+            } catch (error) {
+                console.error('Không thể duyệt bài gửi quán:', error);
+                showAppStatus(`Không thể xử lý bài gửi: ${error.message}`);
+                actionButtons.forEach(actionButton => { actionButton.disabled = false; });
+            }
+        });
+        if (supabaseClient) {
+            collaborationToggle.textContent = '☁️ Đang kết nối dữ liệu chung…';
+            supabaseClient.auth.onAuthStateChange(event => {
+                if (event === 'PASSWORD_RECOVERY') passwordRecoveryMode = true;
+                if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+                    currentUser = null;
+                    isSignedIn = false;
+                    isCatAdmin = false;
+                    pendingCatSubmissions = [];
+                    setTimeout(updateCollaborationControls, 0);
+                } else if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'USER_UPDATED') {
+                    setTimeout(async () => {
+                        try {
+                            await refreshEditorAccess();
+                            if (storageReady) {
+                                await refreshCloudCats();
+                                if (isCatAdmin) await refreshPendingSubmissions();
+                            }
+                        } catch (error) {
+                            console.error('Không thể cập nhật quyền cộng tác:', error);
+                            showAppStatus(`Không thể xác nhận quyền tài khoản: ${error.message}`);
+                        }
+                    }, 0);
+                }
+            });
+        } else {
+            updateCollaborationControls();
+        }
+        L.DomEvent.disableClickPropagation(catListPanel);
+        L.DomEvent.disableScrollPropagation(catListPanel);
+        catListToggle.onclick = () => {
+            const expanded = catListPanel.classList.toggle('expanded');
+            catListToggle.setAttribute('aria-expanded', String(expanded));
+            if (expanded) {
+                renderCatList();
+                catSearchInput.focus();
+            }
+        };
+        catSearchInput.addEventListener('input', () => renderCatMarkers());
+        catStatusFilter.addEventListener('change', () => renderCatMarkers());
+        catDistanceFilter.addEventListener('change', () => {
+            renderCatMarkers();
+            if (catDistanceFilter.value && !catFilterLocation) requestCatFilterLocation();
+        });
+        catLocationButton.addEventListener('click', () => requestCatFilterLocation());
+        catClearFiltersButton.addEventListener('click', () => {
+            catSearchInput.value = '';
+            catStatusFilter.value = '';
+            catDistanceFilter.value = '';
+            renderCatMarkers();
+        });
+        map.on('locationfound', event => {
+            catFilterLocation = event.latlng;
+            catLocationLoading = false;
+            catLocationError = '';
+            if (catLocationMarker) catLocationMarker.setLatLng(event.latlng);
+            else catLocationMarker = L.circleMarker(event.latlng, {
+                radius: 8, color: '#ff8da1', fillColor: '#ff8da1', fillOpacity: 0.5
+            }).addTo(map);
+            updateCatLocationControls();
+            renderCatMarkers();
+        });
+        map.on('locationerror', event => {
+            catLocationLoading = false;
+            catLocationError = event.code === 1
+                ? 'Chưa được cấp quyền vị trí. Hãy cho phép truy cập vị trí trong trình duyệt hoặc chọn “Tất cả” trong Khoảng cách.'
+                : 'Không lấy được vị trí. Hãy thử lại hoặc chọn “Tất cả” trong Khoảng cách.';
+            if (catFilterLocation) catLocationError += ' Khoảng cách vẫn dùng vị trí đã lấy trước đó.';
+            updateCatLocationControls();
+            renderCatList();
+        });
+        requestCatFilterLocation(true);
+        document.addEventListener('click', event => {
+            if (!catListPanel.contains(event.target)) {
+                catListPanel.classList.remove('expanded');
+                catListToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+        imageViewerClose.onclick = closeImageViewer;
+        imageViewer.addEventListener('click', event => {
+            if (event.target === imageViewer) closeImageViewer();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && imageViewer.classList.contains('active')) {
+                closeImageViewer();
+            }
+        });
+        backupMenuToggle.onclick = () => {
+            const expanded = backupActions.classList.toggle('expanded');
+            backupMenuToggle.setAttribute('aria-expanded', String(expanded));
+            backupMenuToggle.setAttribute('aria-label', expanded ? 'Đóng menu sao lưu' : 'Mở menu sao lưu');
+        };
+        document.addEventListener('click', event => {
+            if (!backupActions.contains(event.target)) {
+                backupActions.classList.remove('expanded');
+                backupMenuToggle.setAttribute('aria-expanded', 'false');
+                backupMenuToggle.setAttribute('aria-label', 'Mở menu sao lưu');
+            }
+        });
+        document.getElementById('closeModalBtn').onclick = resetAndCloseModal;
+
+        [imageZoom, imagePanX, imagePanY, imageFilter].forEach(control => {
+            control.addEventListener('input', renderImagePreview);
+            control.addEventListener('change', renderImagePreview);
+        });
+        document.getElementById('rotateLeftBtn').onclick = () => {
+            imageRotation = (imageRotation + 270) % 360;
+            renderImagePreview();
+        };
+        document.getElementById('rotateRightBtn').onclick = () => {
+            imageRotation = (imageRotation + 90) % 360;
+            renderImagePreview();
+        };
+        document.getElementById('flipHorizontalBtn').onclick = () => {
+            imageFlipX = !imageFlipX;
+            renderImagePreview();
+        };
+        document.getElementById('flipVerticalBtn').onclick = () => {
+            imageFlipY = !imageFlipY;
+            renderImagePreview();
+        };
+        document.getElementById('resetImageEditBtn').onclick = resetImageEditor;
+
+        photoInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                sourceImage = null;
+                currentImageDataUrl = "";
+                previewContainer.style.display = 'none';
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const image = new Image();
+                    image.onload = () => {
+                        sourceImage = image;
+                        resetImageEditor();
+                        previewContainer.style.display = 'block';
+                    };
+                    image.onerror = () => {
+                        appStatus.textContent = 'Không thể mở ảnh đã chọn. Vui lòng chọn ảnh khác.';
+                        appStatus.style.display = 'block';
+                    };
+                    image.src = event.target.result;
+                };
+                reader.onerror = () => {
+                    appStatus.textContent = 'Không thể đọc ảnh đã chọn. Vui lòng thử lại.';
+                    appStatus.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        collaborationMigrateImagesButton.onclick = async () => {
+            try {
+                await migrateLegacyCloudImages();
+            } catch (error) {
+                console.error('Không thể di chuyển ảnh cũ sang Storage:', error);
+                showAppStatus(`Không thể di chuyển ảnh: ${error.message}`);
+            }
+        };
+
+        exportBackupButton.onclick = () => {
+            try {
+                const backup = {
+                    format: 'cat-map-backup',
+                    version: 1,
+                    exportedAt: new Date().toISOString(),
+                    cats: cats.map(cat => ({
+                        ...cat,
+                        image: cat.image && !cat.image.startsWith('data:') && !/^https?:\/\//i.test(cat.image)
+                            ? getCatImageUrl(cat.image)
+                            : cat.image
+                    }))
+                };
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `so-tay-do-an-${new Date().toISOString().slice(0, 10)}.json`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                clearAppStatus();
+            } catch (error) {
+                console.error('Không thể tạo bản sao lưu:', error);
+                showAppStatus(`Không thể tạo bản sao lưu: ${error.message}`);
+            }
+        };
+
+        importBackupButton.onclick = () => backupFileInput.click();
+        backupFileInput.onchange = async () => {
+            const file = backupFileInput.files[0];
+            if (!file) return;
+            try {
+                const backup = JSON.parse(await file.text());
+                let backupCats;
+                if (Array.isArray(backup)) {
+                    backupCats = backup;
+                } else if (backup && typeof backup === 'object' && Array.isArray(backup.cats)) {
+                    if (backup.format && backup.format !== 'cat-map-backup') {
+                        throw new Error('File này có định dạng sao lưu của ứng dụng khác.');
+                    }
+                    if (backup.version !== undefined && backup.version !== 1) {
+                        throw new Error(`Phiên bản sao lưu ${backup.version} chưa được hỗ trợ.`);
+                    }
+                    backupCats = backup.cats;
+                } else {
+                    throw new Error('Không tìm thấy danh sách quán trong file JSON.');
+                }
+                const importedCats = validateCats(backupCats).map(cat => ({ ...cat, id: createCatId() }));
+                await persistCats(cats.concat(importedCats));
+                showAppStatus(`Đã khôi phục thêm ${importedCats.length} dấu quán. Dữ liệu hiện có được giữ nguyên.`);
+                clearTimeout(window.appStatusTimer);
+                window.appStatusTimer = setTimeout(clearAppStatus, 7000);
+            } catch (error) {
+                console.error('Không thể khôi phục bản sao lưu:', error);
+                showAppStatus(`Khôi phục thất bại: ${error.message}`);
+            } finally {
+                backupFileInput.value = '';
+            }
+        };
+
+        saveButton.onclick = async () => {
+            const name = document.getElementById('catName').value.trim().slice(0, 40) || 'Quán chưa đặt tên';
+            const note = document.getElementById('catNote').value || "Một quán ngon chưa có ghi chú 🍜";
+            const isEditing = Boolean(editingCatId);
+            saveButton.disabled = true;
+            saveButton.innerText = isEditing ? 'Đang lưu...' : 'Đang lấy vị trí...';
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            try {
+                currentImageDataUrl = sourceImage ? photoPreviewCanvas.toDataURL('image/jpeg', 0.82) : '';
+            } catch (error) {
+                console.error('Không thể xuất ảnh đã chỉnh sửa:', error);
+                appStatus.textContent = 'Không thể xử lý ảnh này. Vui lòng chọn ảnh khác.';
+                appStatus.style.display = 'block';
+                saveButton.disabled = false;
+                saveButton.innerText = isEditing ? 'Lưu thay đổi' :
+                    isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
+                return;
+            }
+            let locationLookupWarning = '';
+            try {
+                if (editingCatId) {
+                    const editedId = editingCatId;
+                    const lat = Number(editLatitude.value);
+                    const lng = Number(editLongitude.value);
+                    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+                        throw new Error('Vĩ độ hoặc kinh độ không hợp lệ.');
+                    }
+                    saveButton.innerText = 'Đang đồng bộ...';
+                    let locationName = document.getElementById('catLocationName').value.trim();
+                    if (!locationName) {
+                        try {
+                            locationName = await lookupLocationName(lat, lng);
+                        } catch (error) {
+                            console.warn('Không thể tra cứu tên vị trí từ OpenStreetMap:', error);
+                            locationLookupWarning = 'Không tra cứu được tên vị trí qua OpenStreetMap; quán vẫn được lưu bằng tọa độ.';
+                        }
+                    }
+                    const updatedCats = cats.map(cat => cat.id === editingCatId
+                        ? {
+                            ...cat,
+                            lat,
+                            lng,
+                            name,
+                            location_name: locationName,
+                            note,
+                            image: currentImageDataUrl || null
+                        }
+                        : cat);
+                    await persistCats(updatedCats);
+                    resetAndCloseModal();
+                    const editedCat = cats.find(cat => cat.id === editedId);
+                    if (editedCat) {
+                        const group = markerGroups.get(`${editedCat.lat},${editedCat.lng}`);
+                        if (group) openCatGroupPopup(group);
+                    }
+                } else {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            resolve,
+                            error => reject({ geolocationError: error }),
+                            { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
+                        );
+                    });
+                    saveButton.innerText = 'Đang đồng bộ...';
+                    locationLookupWarning = await saveCatAt(
+                        position.coords.latitude,
+                        position.coords.longitude,
+                        name,
+                        note,
+                        false,
+                        currentImageDataUrl,
+                        document.getElementById('catLocationName').value.trim()
+                    );
+                }
+                if (locationLookupWarning) showAppStatus(locationLookupWarning);
+                else if (!isCloudConfigured || isEditing) clearAppStatus();
+            } catch (error) {
+                if (!editingCatId && error?.geolocationError) {
+                    const locationError = error.geolocationError;
+                    const reason = locationError.code === locationError.PERMISSION_DENIED
+                        ? 'Bạn đã từ chối quyền truy cập vị trí.'
+                        : locationError.code === locationError.POSITION_UNAVAILABLE
+                            ? 'Thiết bị không xác định được vị trí.'
+                            : 'Đã hết thời gian chờ GPS.';
+                    if (confirm(`${reason}\n\nBạn có muốn đặt dấu quán tại tâm bản đồ hiện tại không? Đây chỉ là vị trí ước lượng, không phải vị trí GPS.`)) {
+                        const center = map.getCenter();
+                        try {
+                            locationLookupWarning = await saveCatAt(
+                                center.lat,
+                                center.lng,
+                                name,
+                                note,
+                                true,
+                                currentImageDataUrl,
+                                document.getElementById('catLocationName').value.trim()
+                            );
+                            if (locationLookupWarning) showAppStatus(locationLookupWarning);
+                        } catch (saveError) {
+                            console.error('Không thể lưu vị trí quán:', saveError);
+                            showAppStatus(`Không thể lưu vị trí: ${saveError.message}`);
+                        }
+                    }
+                } else {
+                    console.error('Không thể lưu thông tin quán:', error);
+                    showAppStatus(`Không thể lưu thông tin: ${error.message}`);
+                }
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerText = editingCatId ? 'Lưu thay đổi' :
+                    isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
+            }
+        };
+
+        function resetAndCloseModal() {
+            modal.classList.remove('active');
+            photoInput.value = "";
+            document.getElementById('catName').value = "";
+            document.getElementById('catLocationName').value = "";
+            document.getElementById('catNote').value = "";
+            previewContainer.style.display = "none";
+            editingCatId = null;
+            modalTitle.textContent = 'Thêm quán ngon! 🍜';
+            saveButton.innerText = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
+            editLocationFields.classList.remove('active');
+            sourceImage = null;
+            currentImageDataUrl = "";
+            resetImageEditor();
+            saveButton.disabled = false;
+            saveButton.innerText = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
+        }
+
+        initializeStorage().then(() => {
+            saveButton.disabled = false;
+            openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
+            exportBackupButton.disabled = false;
+            importBackupButton.disabled = isCloudConfigured && !currentUser;
+        }).catch(error => {
+            console.error('Không thể khởi tạo kho dữ liệu:', error);
+            showAppStatus(`Không thể mở kho dữ liệu trên trình duyệt: ${error.message}`);
+        });
+    </script>
+</body>
+
+</html>
