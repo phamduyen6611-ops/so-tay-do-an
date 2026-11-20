@@ -888,6 +888,41 @@
             margin-bottom: 15px;
         }
 
+        .photo-upload-options {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .photo-upload-options .file-upload-btn {
+            flex: 1;
+            margin-bottom: 0;
+            padding: 12px 6px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-align: center;
+            min-height: 48px;
+            border-radius: 12px;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .photo-upload-options .file-upload-btn:active {
+            transform: scale(0.97);
+            background: #ffe3e9;
+        }
+
+        @media (max-width: 340px) {
+            .photo-upload-options {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
+
         #photoPreviewCanvas {
             display: block;
             width: 100%;
@@ -1354,11 +1389,17 @@
         <div class="modal-content">
             <h2 id="modalTitle">Thêm quán ngon! 🍜</h2>
 
-            <label class="file-upload-btn">
-                📸 Chụp/Tải ảnh lên
-                <!-- capture="environment" ưu tiên mở camera sau trên mobile -->
-                <input type="file" id="catPhoto" accept="image/*" capture="environment">
-            </label>
+            <div class="photo-upload-options">
+                <label class="file-upload-btn" title="Chụp ảnh mới bằng máy ảnh">
+                    📸 Chụp ảnh
+                    <!-- capture="environment" mở thẳng camera sau trên mobile -->
+                    <input type="file" id="catPhotoCamera" accept="image/*" capture="environment">
+                </label>
+                <label class="file-upload-btn" title="Chọn ảnh có sẵn từ thư viện hoặc album ảnh">
+                    🖼️ Chọn từ album
+                    <input type="file" id="catPhoto" accept="image/*">
+                </label>
+            </div>
             <div id="previewContainer" style="display:none; margin-bottom: 15px;">
                 <div class="image-preview-frame">
                     <canvas id="photoPreviewCanvas" width="900" height="675"
@@ -1558,6 +1599,7 @@
 
         const modal = document.getElementById('addCatModal');
         const photoInput = document.getElementById('catPhoto');
+        const photoCameraInput = document.getElementById('catPhotoCamera');
         const photoPreviewCanvas = document.getElementById('photoPreviewCanvas');
         const imageZoom = document.getElementById('imageZoom');
         const imagePanX = document.getElementById('imagePanX');
@@ -3728,33 +3770,41 @@
         };
         document.getElementById('resetImageEditBtn').onclick = resetImageEditor;
 
-        photoInput.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                sourceImage = null;
-                currentImageDataUrl = "";
-                previewContainer.style.display = 'none';
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const image = new Image();
-                    image.onload = () => {
-                        sourceImage = image;
-                        resetImageEditor();
-                        previewContainer.style.display = 'block';
-                    };
-                    image.onerror = () => {
-                        appStatus.textContent = 'Không thể mở ảnh đã chọn. Vui lòng chọn ảnh khác.';
-                        appStatus.style.display = 'block';
-                    };
-                    image.src = event.target.result;
+        function handlePhotoFile(file) {
+            if (!file) return;
+            sourceImage = null;
+            currentImageDataUrl = "";
+            previewContainer.style.display = 'none';
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const image = new Image();
+                image.onload = () => {
+                    sourceImage = image;
+                    resetImageEditor();
+                    previewContainer.style.display = 'block';
                 };
-                reader.onerror = () => {
-                    appStatus.textContent = 'Không thể đọc ảnh đã chọn. Vui lòng thử lại.';
+                image.onerror = () => {
+                    appStatus.textContent = 'Không thể mở ảnh đã chọn. Vui lòng chọn ảnh khác.';
                     appStatus.style.display = 'block';
                 };
-                reader.readAsDataURL(file);
-            }
+                image.src = event.target.result;
+            };
+            reader.onerror = () => {
+                appStatus.textContent = 'Không thể đọc ảnh đã chọn. Vui lòng thử lại.';
+                appStatus.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        photoInput.onchange = (e) => {
+            handlePhotoFile(e.target.files[0]);
         };
+
+        if (photoCameraInput) {
+            photoCameraInput.onchange = (e) => {
+                handlePhotoFile(e.target.files[0]);
+            };
+        }
 
         collaborationMigrateImagesButton.onclick = async () => {
             try {
@@ -3945,6 +3995,7 @@
         function resetAndCloseModal() {
             modal.classList.remove('active');
             photoInput.value = "";
+            if (photoCameraInput) photoCameraInput.value = "";
             document.getElementById('catName').value = "";
             document.getElementById('catLocationName').value = "";
             document.getElementById('catNote').value = "";
