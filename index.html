@@ -824,10 +824,19 @@
             border-radius: 8px;
         }
 
+        .location-tools-container {
+            background: #fff8f9;
+            border: 1px solid #f6d5dc;
+            border-radius: 16px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            text-align: left;
+        }
+
         .location-input-group {
             display: flex;
             gap: 8px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .location-input-group .cat-name-input {
@@ -836,9 +845,9 @@
         }
 
         .btn-geocode {
-            background: #fff0f3;
-            color: var(--primary);
-            border: 1px solid #f1cbd2;
+            background: var(--primary);
+            color: #ffffff;
+            border: 1px solid var(--primary);
             border-radius: 12px;
             padding: 8px 12px;
             font-size: 13px;
@@ -852,7 +861,7 @@
         }
 
         .btn-geocode:hover {
-            background: #ffe3e9;
+            background: #e04867;
         }
 
         .btn-geocode:active {
@@ -862,6 +871,64 @@
         .btn-geocode:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        .location-action-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .btn-loc-action {
+            flex: 1;
+            background: #ffffff;
+            color: var(--primary);
+            border: 1px solid #f1cbd2;
+            border-radius: 12px;
+            padding: 8px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+        }
+
+        .btn-loc-action:hover {
+            background: #ffeef2;
+            border-color: var(--primary);
+        }
+
+        .btn-loc-action:active {
+            transform: scale(0.97);
+        }
+
+        .btn-loc-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .location-coord-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #777;
+            background: #fff;
+            border: 1px dashed #e2c0c7;
+            border-radius: 10px;
+            padding: 6px 10px;
+            line-height: 1.35;
+            word-break: break-all;
+        }
+
+        .location-coord-badge.has-coords {
+            color: #1b5e20;
+            border-color: #81c784;
+            background: #f1f8e9;
+            font-weight: 600;
         }
 
         .geocode-status {
@@ -1508,15 +1575,27 @@
 
             <input id="catName" class="cat-name-input" type="text" maxlength="40"
                 placeholder="Tên quán hoặc món (ví dụ: Phở Thìn)" autocomplete="off">
-            <div class="location-input-group">
-                <input id="catLocationName" class="cat-name-input" type="text" maxlength="120"
-                    placeholder="Địa chỉ quán (ví dụ: 54 Hàng Cót, Hoàn Kiếm)" autocomplete="off">
-                <button type="button" class="btn-geocode" id="geocodeAddressBtn" title="Tìm tọa độ theo địa chỉ này">
-                    📍 Định vị lại
-                </button>
+            <div class="location-tools-container">
+                <div class="location-input-group">
+                    <input id="catLocationName" class="cat-name-input" type="text" maxlength="120"
+                        placeholder="Địa chỉ quán (ví dụ: 54 Hàng Cót, Hoàn Kiếm)" autocomplete="off">
+                    <button type="button" class="btn-geocode" id="geocodeAddressBtn" title="Tìm tọa độ theo địa chỉ này">
+                        📍 Định vị lại
+                    </button>
+                </div>
+                <div class="location-action-bar">
+                    <button type="button" class="btn-loc-action" id="currentGpsBtn" title="Lấy tọa độ GPS chính xác từ thiết bị">
+                        🎯 GPS hiện tại
+                    </button>
+                    <button type="button" class="btn-loc-action" id="chooseMapLocationBtn" title="Chấm điểm chính xác trên bản đồ">
+                        🗺️ Chọn trên bản đồ
+                    </button>
+                </div>
+                <div id="geocodeStatus" class="geocode-status" style="display:none;"></div>
+                <div id="locationCoordBadge" class="location-coord-badge">
+                    <span id="locationCoordText">Chưa xác định tọa độ (sẽ lấy GPS khi lưu)</span>
+                </div>
             </div>
-            <div id="geocodeStatus" class="geocode-status" style="display:none;"></div>
-            <small class="location-lookup-note">Nhập địa chỉ rồi bấm "📍 Định vị lại" để dời quán tới đó, hoặc để trống khi thêm mới để lấy vị trí GPS.</small>
             <div class="food-meta-fields">
                 <label>Loại món
                     <select id="catCategory">
@@ -1535,10 +1614,6 @@
                 </label>
             </div>
             <textarea id="catNote" maxlength="2000" placeholder="Món ngon, giá khoảng bao nhiêu, giờ mở cửa..."></textarea>
-
-            <button type="button" class="btn btn-location" id="chooseMapLocationBtn">
-                📍 Chọn vị trí trên bản đồ
-            </button>
 
             <div class="edit-location" id="editLocationFields">
                 <label>Vĩ độ
@@ -1687,6 +1762,9 @@
         const backupFileInput = document.getElementById('backupFileInput');
         const chooseMapLocationButton = document.getElementById('chooseMapLocationBtn');
         const geocodeAddressButton = document.getElementById('geocodeAddressBtn');
+        const currentGpsButton = document.getElementById('currentGpsBtn');
+        const locationCoordBadge = document.getElementById('locationCoordBadge');
+        const locationCoordText = document.getElementById('locationCoordText');
         const geocodeStatus = document.getElementById('geocodeStatus');
         const mapSelectionPrompt = document.getElementById('mapSelectionPrompt');
         const backupActions = document.querySelector('.backup-actions');
@@ -2815,40 +2893,200 @@
             return pending;
         }
 
-        async function geocodeAddress(query) {
-            if (!query || !query.trim()) return null;
-            const trimmed = query.trim();
-            const searchQuery = trimmed.toLowerCase().includes('việt nam') || trimmed.toLowerCase().includes('vietnam')
-                ? trimmed
-                : `${trimmed}, Việt Nam`;
+        function calculateHaversineDistanceKm(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
 
-            const url = new URL('https://nominatim.openstreetmap.org/search');
-            url.search = new URLSearchParams({
-                q: searchQuery,
-                format: 'jsonv2',
-                limit: '1',
-                addressdetails: '1'
-            });
-
+        async function fetchJsonWithTimeout(url, headers = {}, timeoutMs = 6000) {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
             try {
-                const response = await fetch(url, {
-                    signal: controller.signal,
-                    headers: { 'Accept-Language': 'vi' }
-                });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                if (data && data.length > 0) {
-                    return {
-                        lat: parseFloat(data[0].lat),
-                        lng: parseFloat(data[0].lon),
-                        displayName: data[0].display_name
-                    };
-                }
+                const res = await fetch(url, { signal: controller.signal, headers });
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (e) {
                 return null;
             } finally {
-                clearTimeout(timeoutId);
+                clearTimeout(timer);
+            }
+        }
+
+        async function smartGeocode(query, refLat, refLng) {
+            if (!query || !query.trim()) return null;
+            const raw = query.trim();
+            const stripped = raw.replace(/^(số\s+|ngõ\s+|ngách\s+|hẻm\s+)?\s*\d+[\w/-]*\s*(đường\s+|phố\s+)?/i, '').trim();
+
+            if (!Number.isFinite(refLat) || !Number.isFinite(refLng)) {
+                if (map && typeof map.getCenter === 'function') {
+                    const c = map.getCenter();
+                    refLat = c.lat;
+                    refLng = c.lng;
+                } else {
+                    refLat = 21.0285;
+                    refLng = 105.8542;
+                }
+            }
+
+            const minLon = refLng - 0.45;
+            const maxLon = refLng + 0.45;
+            const minLat = refLat - 0.4;
+            const maxLat = refLat + 0.4;
+            const vb = `${minLon},${maxLat},${maxLon},${minLat}`;
+
+            const candidates = [];
+            const fetchPromises = [];
+
+            // 1. Photon with lat/lon bias for raw query
+            const photonRawUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(raw)}&lat=${refLat}&lon=${refLng}&limit=5`;
+            fetchPromises.push(
+                fetchJsonWithTimeout(photonRawUrl, { 'Accept-Language': 'vi' }).then(data => {
+                    if (!data || !data.features) return;
+                    data.features.forEach(f => {
+                        const [lon, lat] = f.geometry.coordinates;
+                        const p = f.properties || {};
+                        const name = [p.name, p.street, p.district, p.city || p.state].filter(Boolean).join(', ');
+                        candidates.push({ lat, lng: lon, displayName: name || raw, isExactQuery: true });
+                    });
+                })
+            );
+
+            // 2. Nominatim with viewbox bias for raw query
+            const nomQuery = raw.toLowerCase().includes('việt nam') || raw.toLowerCase().includes('vietnam') ? raw : `${raw}, Việt Nam`;
+            const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(nomQuery)}&format=jsonv2&limit=5&countrycodes=vn&viewbox=${vb}&bounded=0&addressdetails=1`;
+            fetchPromises.push(
+                fetchJsonWithTimeout(nomUrl, { 'Accept-Language': 'vi' }).then(data => {
+                    if (!Array.isArray(data)) return;
+                    data.forEach(item => {
+                        candidates.push({
+                            lat: parseFloat(item.lat),
+                            lng: parseFloat(item.lon),
+                            displayName: item.display_name,
+                            isExactQuery: true
+                        });
+                    });
+                })
+            );
+
+            // 3. Fallback: if query starts with house number, also query stripped street name
+            if (stripped && stripped.length >= 2 && stripped.toLowerCase() !== raw.toLowerCase()) {
+                const photonStrippedUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(stripped)}&lat=${refLat}&lon=${refLng}&limit=5`;
+                fetchPromises.push(
+                    fetchJsonWithTimeout(photonStrippedUrl, { 'Accept-Language': 'vi' }).then(data => {
+                        if (!data || !data.features) return;
+                        data.features.forEach(f => {
+                            const [lon, lat] = f.geometry.coordinates;
+                            const p = f.properties || {};
+                            const name = [p.name, p.street, p.district, p.city || p.state].filter(Boolean).join(', ');
+                            candidates.push({ lat, lng: lon, displayName: name || stripped, isExactQuery: false });
+                        });
+                    })
+                );
+            }
+
+            await Promise.all(fetchPromises);
+
+            if (!candidates.length) return null;
+
+            candidates.forEach(c => {
+                c.dist = calculateHaversineDistanceKm(refLat, refLng, c.lat, c.lng);
+                let score = c.dist;
+                if (c.dist > 40) score += 100;
+                if (c.isExactQuery) score -= 3;
+                c.score = score;
+            });
+
+            candidates.sort((a, b) => a.score - b.score);
+            return candidates[0];
+        }
+
+        async function geocodeAddress(query) {
+            const center = map.getCenter();
+            const refLat = (editLatitude && Number(editLatitude.value)) || (catFilterLocation ? catFilterLocation.lat : center.lat);
+            const refLng = (editLongitude && Number(editLongitude.value)) || (catFilterLocation ? catFilterLocation.lng : center.lng);
+            return smartGeocode(query, refLat, refLng);
+        }
+
+        function updateLocationCoordDisplay(label = '') {
+            if (!locationCoordText || !locationCoordBadge) return;
+            const lat = parseFloat(editLatitude.value);
+            const lng = parseFloat(editLongitude.value);
+            if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+                const text = `Tọa độ ghim: ${lat.toFixed(5)}, ${lng.toFixed(5)}` + (label ? ` (${label})` : '');
+                locationCoordText.textContent = text;
+                locationCoordBadge.classList.add('has-coords');
+            } else {
+                locationCoordText.textContent = 'Chưa xác định tọa độ (sẽ lấy GPS khi lưu)';
+                locationCoordBadge.classList.remove('has-coords');
+            }
+        }
+
+        async function acquireCurrentGpsLocation() {
+            if (!navigator.geolocation) {
+                geocodeStatus.className = 'geocode-status error';
+                geocodeStatus.textContent = '⚠️ Trình duyệt của bạn không hỗ trợ định vị GPS.';
+                geocodeStatus.style.display = 'block';
+                return;
+            }
+            if (currentGpsButton) {
+                currentGpsButton.disabled = true;
+                currentGpsButton.textContent = '⏳ Đang lấy GPS...';
+            }
+            geocodeStatus.className = 'geocode-status loading';
+            geocodeStatus.textContent = '🛰️ Đang xác định tọa độ GPS chính xác từ thiết bị...';
+            geocodeStatus.style.display = 'block';
+
+            try {
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 12000,
+                        maximumAge: 0
+                    });
+                });
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                const acc = Math.round(pos.coords.accuracy || 0);
+
+                editLatitude.value = String(lat);
+                editLongitude.value = String(lng);
+                updateLocationCoordDisplay(`GPS ±${acc}m`);
+
+                geocodeStatus.className = 'geocode-status success';
+                geocodeStatus.textContent = `🎯 Đã lấy tọa độ GPS chính xác (sai số ±${acc}m).`;
+                geocodeStatus.style.display = 'block';
+
+                map.setView([lat, lng], 17);
+
+                const locInput = document.getElementById('catLocationName');
+                if (!locInput.value.trim()) {
+                    geocodeStatus.textContent = `🎯 Đã lấy GPS (±${acc}m). Đang tra cứu tên địa chỉ...`;
+                    try {
+                        const name = await lookupLocationName(lat, lng);
+                        if (name && !locInput.value.trim()) {
+                            locInput.value = name;
+                            geocodeStatus.textContent = `🎯 Đã lấy GPS (±${acc}m) và xác định địa chỉ: ${name}`;
+                        }
+                    } catch (e) {
+                        geocodeStatus.textContent = `🎯 Đã lấy tọa độ GPS chính xác (sai số ±${acc}m).`;
+                    }
+                }
+            } catch (err) {
+                geocodeStatus.className = 'geocode-status error';
+                geocodeStatus.textContent = err.code === 1
+                    ? '⚠️ Bạn đã từ chối quyền vị trí. Vui lòng bật cấp quyền GPS cho trang web.'
+                    : (err.code === 3 ? '⚠️ Hết thời gian chờ GPS thiết bị. Hãy thử lại hoặc chọn trên bản đồ.' : '⚠️ Không thể lấy GPS từ thiết bị.');
+                geocodeStatus.style.display = 'block';
+            } finally {
+                if (currentGpsButton) {
+                    currentGpsButton.disabled = false;
+                    currentGpsButton.textContent = '🎯 GPS hiện tại';
+                }
             }
         }
 
@@ -2862,21 +3100,36 @@
             }
             if (geocodeAddressButton) geocodeAddressButton.disabled = true;
             geocodeStatus.className = 'geocode-status loading';
-            geocodeStatus.textContent = '🔍 Đang tra cứu tọa độ từ địa chỉ...';
+            geocodeStatus.textContent = '🔍 Đang tra cứu vị trí gần khu vực của bạn...';
             geocodeStatus.style.display = 'block';
 
             try {
-                const result = await geocodeAddress(address);
+                let refLat = 21.0285, refLng = 105.8542;
+                if (Number(editLatitude.value) && Number(editLongitude.value)) {
+                    refLat = Number(editLatitude.value);
+                    refLng = Number(editLongitude.value);
+                } else if (catFilterLocation) {
+                    refLat = catFilterLocation.lat;
+                    refLng = catFilterLocation.lng;
+                } else if (map && typeof map.getCenter === 'function') {
+                    const center = map.getCenter();
+                    refLat = center.lat;
+                    refLng = center.lng;
+                }
+
+                const result = await smartGeocode(address, refLat, refLng);
                 if (result) {
                     editLatitude.value = String(result.lat);
                     editLongitude.value = String(result.lng);
+                    const distText = result.dist < 1 ? `cách ~${Math.round(result.dist * 1000)}m` : `cách ~${result.dist.toFixed(1)}km`;
+                    updateLocationCoordDisplay('Theo địa chỉ');
                     geocodeStatus.className = 'geocode-status success';
-                    geocodeStatus.textContent = `✓ Đã định vị lại tọa độ (${result.lat.toFixed(4)}, ${result.lng.toFixed(4)}): ${result.displayName.slice(0, 75)}...`;
+                    geocodeStatus.textContent = `✓ Đã định vị (${distText}): ${result.displayName}`;
                     geocodeStatus.style.display = 'block';
                     map.setView([result.lat, result.lng], 17);
                 } else {
                     geocodeStatus.className = 'geocode-status error';
-                    geocodeStatus.textContent = '⚠️ Không tìm thấy vị trí cho địa chỉ này. Hãy thử thêm tên đường, phường/xã, quận/huyện hoặc tỉnh/thành.';
+                    geocodeStatus.textContent = '⚠️ Không tìm thấy vị trí phù hợp. Bạn có thể bấm "🎯 GPS hiện tại" hoặc "🗺️ Chọn trên bản đồ".';
                     geocodeStatus.style.display = 'block';
                 }
             } catch (error) {
@@ -2891,6 +3144,13 @@
         if (geocodeAddressButton) {
             geocodeAddressButton.onclick = runGeocodeFromAddress;
         }
+
+        if (currentGpsButton) {
+            currentGpsButton.onclick = acquireCurrentGpsLocation;
+        }
+
+        editLatitude.addEventListener('input', () => updateLocationCoordDisplay('Nhập tay'));
+        editLongitude.addEventListener('input', () => updateLocationCoordDisplay('Nhập tay'));
 
         document.getElementById('catLocationName').addEventListener('keydown', event => {
             if (event.key === 'Enter') {
@@ -3470,8 +3730,12 @@
             modalTitle.textContent = 'Sửa thông tin quán';
             saveButton.textContent = 'Lưu thay đổi';
             chooseMapLocationButton.style.display = 'block';
-            chooseMapLocationButton.textContent = '📍 Đổi vị trí trên bản đồ';
+            chooseMapLocationButton.textContent = '🗺️ Đổi vị trí trên bản đồ';
             if (geocodeStatus) geocodeStatus.style.display = 'none';
+            if (currentGpsButton) {
+                currentGpsButton.disabled = false;
+                currentGpsButton.textContent = '🎯 GPS hiện tại';
+            }
             document.getElementById('catName').value = cat.name || '';
             document.getElementById('catLocationName').value = getCatLocationName(cat);
             document.getElementById('catNote').value = cat.note;
@@ -3479,6 +3743,7 @@
             editLatitude.value = String(cat.lat);
             editLongitude.value = String(cat.lng);
             editLocationFields.classList.add('active');
+            updateLocationCoordDisplay('Vị trí hiện tại của quán');
             resetImageEditor();
             sourceImage = null;
             currentImageDataUrl = cat.image || '';
@@ -3626,11 +3891,16 @@
             modalTitle.textContent = 'Thêm quán ngon! 🍜';
             saveButton.textContent = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
             chooseMapLocationButton.style.display = 'block';
-            chooseMapLocationButton.textContent = '📍 Chọn vị trí trên bản đồ';
+            chooseMapLocationButton.textContent = '🗺️ Chọn trên bản đồ';
             if (geocodeStatus) geocodeStatus.style.display = 'none';
+            if (currentGpsButton) {
+                currentGpsButton.disabled = false;
+                currentGpsButton.textContent = '🎯 GPS hiện tại';
+            }
             editLocationFields.classList.remove('active');
             editLatitude.value = '';
             editLongitude.value = '';
+            updateLocationCoordDisplay();
             document.getElementById('catName').value = '';
             document.getElementById('catLocationName').value = '';
             document.getElementById('catNote').value = '';
@@ -4144,24 +4414,6 @@
                     }
                     let locationName = document.getElementById('catLocationName').value.trim();
 
-                    // Tự động định vị lại tọa độ nếu người dùng đổi tên địa chỉ mà tọa độ chưa được cập nhật
-                    const originalLoc = originalCat ? (originalCat.location_name || '').trim() : '';
-                    if (originalCat && locationName && locationName !== originalLoc &&
-                        Math.abs(lat - originalCat.lat) < 0.000001 && Math.abs(lng - originalCat.lng) < 0.000001) {
-                        saveButton.innerText = 'Đang định vị địa chỉ mới...';
-                        try {
-                            const geocoded = await geocodeAddress(locationName);
-                            if (geocoded) {
-                                lat = geocoded.lat;
-                                lng = geocoded.lng;
-                                editLatitude.value = String(lat);
-                                editLongitude.value = String(lng);
-                            }
-                        } catch (geoErr) {
-                            console.warn('Không thể tự định vị địa chỉ mới:', geoErr);
-                        }
-                    }
-
                     if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
                         throw new Error('Vĩ độ hoặc kinh độ không hợp lệ.');
                     }
@@ -4206,7 +4458,10 @@
                     if (!hasManualCoords && locationName) {
                         try {
                             saveButton.innerText = 'Đang định vị địa chỉ...';
-                            const geocoded = await geocodeAddress(locationName);
+                            const center = map.getCenter();
+                            const refLat = catFilterLocation ? catFilterLocation.lat : center.lat;
+                            const refLng = catFilterLocation ? catFilterLocation.lng : center.lng;
+                            const geocoded = await smartGeocode(locationName, refLat, refLng);
                             if (geocoded) {
                                 lat = geocoded.lat;
                                 lng = geocoded.lng;
@@ -4227,11 +4482,12 @@
                             foodMeta
                         );
                     } else {
+                        saveButton.innerText = 'Đang lấy vị trí GPS...';
                         const position = await new Promise((resolve, reject) => {
                             navigator.geolocation.getCurrentPosition(
                                 resolve,
                                 error => reject({ geolocationError: error }),
-                                { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
+                                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                             );
                         });
                         saveButton.innerText = 'Đang đồng bộ...';
