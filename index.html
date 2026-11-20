@@ -824,6 +824,70 @@
             border-radius: 8px;
         }
 
+        .location-input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .location-input-group .cat-name-input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .btn-geocode {
+            background: #fff0f3;
+            color: var(--primary);
+            border: 1px solid #f1cbd2;
+            border-radius: 12px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .btn-geocode:hover {
+            background: #ffe3e9;
+        }
+
+        .btn-geocode:active {
+            transform: scale(0.96);
+        }
+
+        .btn-geocode:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .geocode-status {
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            text-align: left;
+            line-height: 1.4;
+        }
+
+        .geocode-status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .geocode-status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .geocode-status.loading {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
         /* Modal nhập thông tin */
         .modal {
             display: none;
@@ -1444,9 +1508,15 @@
 
             <input id="catName" class="cat-name-input" type="text" maxlength="40"
                 placeholder="Tên quán hoặc món (ví dụ: Phở Thìn)" autocomplete="off">
-            <input id="catLocationName" class="cat-name-input" type="text" maxlength="120"
-                placeholder="Tên vị trí nếu muốn tự đặt" autocomplete="off">
-            <small class="location-lookup-note">Để trống để tự tra cứu gần nhất qua OpenStreetMap. Tọa độ sẽ được gửi cho dịch vụ này.</small>
+            <div class="location-input-group">
+                <input id="catLocationName" class="cat-name-input" type="text" maxlength="120"
+                    placeholder="Địa chỉ quán (ví dụ: 54 Hàng Cót, Hoàn Kiếm)" autocomplete="off">
+                <button type="button" class="btn-geocode" id="geocodeAddressBtn" title="Tìm tọa độ theo địa chỉ này">
+                    📍 Định vị lại
+                </button>
+            </div>
+            <div id="geocodeStatus" class="geocode-status" style="display:none;"></div>
+            <small class="location-lookup-note">Nhập địa chỉ rồi bấm "📍 Định vị lại" để dời quán tới đó, hoặc để trống khi thêm mới để lấy vị trí GPS.</small>
             <div class="food-meta-fields">
                 <label>Loại món
                     <select id="catCategory">
@@ -1616,6 +1686,8 @@
         const importBackupButton = document.getElementById('importBackupBtn');
         const backupFileInput = document.getElementById('backupFileInput');
         const chooseMapLocationButton = document.getElementById('chooseMapLocationBtn');
+        const geocodeAddressButton = document.getElementById('geocodeAddressBtn');
+        const geocodeStatus = document.getElementById('geocodeStatus');
         const mapSelectionPrompt = document.getElementById('mapSelectionPrompt');
         const backupActions = document.querySelector('.backup-actions');
         const backupMenuToggle = document.getElementById('backupMenuToggle');
@@ -2742,6 +2814,90 @@
             return pending;
         }
 
+        async function geocodeAddress(query) {
+            if (!query || !query.trim()) return null;
+            const trimmed = query.trim();
+            const searchQuery = trimmed.toLowerCase().includes('việt nam') || trimmed.toLowerCase().includes('vietnam')
+                ? trimmed
+                : `${trimmed}, Việt Nam`;
+
+            const url = new URL('https://nominatim.openstreetmap.org/search');
+            url.search = new URLSearchParams({
+                q: searchQuery,
+                format: 'jsonv2',
+                limit: '1',
+                addressdetails: '1'
+            });
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            try {
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    headers: { 'Accept-Language': 'vi' }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    return {
+                        lat: parseFloat(data[0].lat),
+                        lng: parseFloat(data[0].lon),
+                        displayName: data[0].display_name
+                    };
+                }
+                return null;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
+        async function runGeocodeFromAddress() {
+            const address = document.getElementById('catLocationName').value.trim();
+            if (!address) {
+                geocodeStatus.className = 'geocode-status error';
+                geocodeStatus.textContent = 'Vui lòng nhập địa chỉ quán để định vị.';
+                geocodeStatus.style.display = 'block';
+                return;
+            }
+            if (geocodeAddressButton) geocodeAddressButton.disabled = true;
+            geocodeStatus.className = 'geocode-status loading';
+            geocodeStatus.textContent = '🔍 Đang tra cứu tọa độ từ địa chỉ...';
+            geocodeStatus.style.display = 'block';
+
+            try {
+                const result = await geocodeAddress(address);
+                if (result) {
+                    editLatitude.value = String(result.lat);
+                    editLongitude.value = String(result.lng);
+                    geocodeStatus.className = 'geocode-status success';
+                    geocodeStatus.textContent = `✓ Đã định vị lại tọa độ (${result.lat.toFixed(4)}, ${result.lng.toFixed(4)}): ${result.displayName.slice(0, 75)}...`;
+                    geocodeStatus.style.display = 'block';
+                    map.setView([result.lat, result.lng], 17);
+                } else {
+                    geocodeStatus.className = 'geocode-status error';
+                    geocodeStatus.textContent = '⚠️ Không tìm thấy vị trí cho địa chỉ này. Hãy thử thêm tên đường, phường/xã, quận/huyện hoặc tỉnh/thành.';
+                    geocodeStatus.style.display = 'block';
+                }
+            } catch (error) {
+                geocodeStatus.className = 'geocode-status error';
+                geocodeStatus.textContent = `⚠️ Lỗi tra cứu: ${error.message}`;
+                geocodeStatus.style.display = 'block';
+            } finally {
+                if (geocodeAddressButton) geocodeAddressButton.disabled = false;
+            }
+        }
+
+        if (geocodeAddressButton) {
+            geocodeAddressButton.onclick = runGeocodeFromAddress;
+        }
+
+        document.getElementById('catLocationName').addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                runGeocodeFromAddress();
+            }
+        });
+
         function getFilteredCatResults() {
             const query = normalizeSearchText(catSearchInput.value.trim());
             const selectedStatus = catStatusFilter.value;
@@ -3130,10 +3286,49 @@
             if (!pendingMapCat) return;
 
             const selectedCat = pendingMapCat;
+            const clickLat = event.latlng.lat;
+            const clickLng = event.latlng.lng;
+            pendingMapCat = null;
+            mapSelectionPrompt.classList.remove('active');
+            openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
+
+            if (selectedCat.editingId) {
+                try {
+                    let newLocName = selectedCat.location_name;
+                    try {
+                        newLocName = await lookupLocationName(clickLat, clickLng);
+                    } catch (e) {
+                        console.warn('Không thể tra cứu tên vị trí mới:', e);
+                    }
+                    const updatedCats = cats.map(cat => cat.id === selectedCat.editingId ? {
+                        ...cat,
+                        lat: clickLat,
+                        lng: clickLng,
+                        name: selectedCat.name,
+                        location_name: newLocName || cat.location_name,
+                        note: selectedCat.note,
+                        ...selectedCat.foodMeta,
+                        image: selectedCat.image || cat.image
+                    } : cat);
+                    await persistCats(updatedCats);
+                    map.setView([clickLat, clickLng], 17);
+                    showAppStatus('Đã đổi vị trí quán thành công trên bản đồ.');
+                    const updatedCat = updatedCats.find(c => c.id === selectedCat.editingId);
+                    if (updatedCat) {
+                        const group = markerGroups.get(`${updatedCat.lat},${updatedCat.lng}`);
+                        if (group) openCatGroupPopup(group);
+                    }
+                } catch (error) {
+                    console.error('Không thể cập nhật vị trí quán:', error);
+                    showAppStatus(`Không thể đổi vị trí: ${error.message}`);
+                }
+                return;
+            }
+
             try {
                 const locationLookupWarning = await saveCatAt(
-                    event.latlng.lat,
-                    event.latlng.lng,
+                    clickLat,
+                    clickLng,
                     selectedCat.name,
                     selectedCat.note,
                     false,
@@ -3141,9 +3336,6 @@
                     selectedCat.location_name,
                     selectedCat.foodMeta
                 );
-                pendingMapCat = null;
-                mapSelectionPrompt.classList.remove('active');
-                openModalButton.disabled = isCloudConfigured ? !supabaseClient || !currentUser : false;
                 if (locationLookupWarning) showAppStatus(locationLookupWarning);
                 else if (!isCloudConfigured) clearAppStatus();
             } catch (error) {
@@ -3269,7 +3461,9 @@
             editingCatId = cat.id;
             modalTitle.textContent = 'Sửa thông tin quán';
             saveButton.textContent = 'Lưu thay đổi';
-            chooseMapLocationButton.style.display = 'none';
+            chooseMapLocationButton.style.display = 'block';
+            chooseMapLocationButton.textContent = '📍 Đổi vị trí trên bản đồ';
+            if (geocodeStatus) geocodeStatus.style.display = 'none';
             document.getElementById('catName').value = cat.name || '';
             document.getElementById('catLocationName').value = getCatLocationName(cat);
             document.getElementById('catNote').value = cat.note;
@@ -3424,7 +3618,11 @@
             modalTitle.textContent = 'Thêm quán ngon! 🍜';
             saveButton.textContent = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
             chooseMapLocationButton.style.display = 'block';
+            chooseMapLocationButton.textContent = '📍 Chọn vị trí trên bản đồ';
+            if (geocodeStatus) geocodeStatus.style.display = 'none';
             editLocationFields.classList.remove('active');
+            editLatitude.value = '';
+            editLongitude.value = '';
             document.getElementById('catName').value = '';
             document.getElementById('catLocationName').value = '';
             document.getElementById('catNote').value = '';
@@ -3439,6 +3637,7 @@
             try {
                 currentImageDataUrl = sourceImage ? photoPreviewCanvas.toDataURL('image/jpeg', 0.9) : '';
                 pendingMapCat = {
+                    editingId: editingCatId,
                     name: document.getElementById('catName').value.trim() || 'Quán chưa đặt tên',
                     location_name: document.getElementById('catLocationName').value.trim(),
                     note: document.getElementById('catNote').value || 'Một quán ngon chưa có ghi chú 🍜',
@@ -3898,13 +4097,33 @@
             try {
                 if (editingCatId) {
                     const editedId = editingCatId;
-                    const lat = Number(editLatitude.value);
-                    const lng = Number(editLongitude.value);
+                    let lat = Number(editLatitude.value);
+                    let lng = Number(editLongitude.value);
+                    let locationName = document.getElementById('catLocationName').value.trim();
+
+                    // Tự động định vị lại tọa độ nếu người dùng đổi tên địa chỉ mà tọa độ chưa được cập nhật
+                    const originalCat = cats.find(c => c.id === editedId);
+                    const originalLoc = originalCat ? (originalCat.location_name || '').trim() : '';
+                    if (originalCat && locationName && locationName !== originalLoc &&
+                        lat === originalCat.lat && lng === originalCat.lng) {
+                        saveButton.innerText = 'Đang định vị địa chỉ mới...';
+                        try {
+                            const geocoded = await geocodeAddress(locationName);
+                            if (geocoded) {
+                                lat = geocoded.lat;
+                                lng = geocoded.lng;
+                                editLatitude.value = String(lat);
+                                editLongitude.value = String(lng);
+                            }
+                        } catch (geoErr) {
+                            console.warn('Không thể tự định vị địa chỉ mới:', geoErr);
+                        }
+                    }
+
                     if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
                         throw new Error('Vĩ độ hoặc kinh độ không hợp lệ.');
                     }
                     saveButton.innerText = 'Đang đồng bộ...';
-                    let locationName = document.getElementById('catLocationName').value.trim();
                     if (!locationName) {
                         try {
                             locationName = await lookupLocationName(lat, lng);
@@ -3926,6 +4145,7 @@
                         }
                         : cat);
                     await persistCats(updatedCats);
+                    map.setView([lat, lng], 17);
                     resetAndCloseModal();
                     const editedCat = cats.find(cat => cat.id === editedId);
                     if (editedCat) {
@@ -3933,24 +4153,57 @@
                         if (group) openCatGroupPopup(group);
                     }
                 } else {
-                    const position = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(
-                            resolve,
-                            error => reject({ geolocationError: error }),
-                            { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
+                    let lat = Number(editLatitude.value);
+                    let lng = Number(editLongitude.value);
+                    const hasManualCoords = Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
+                                            Number.isFinite(lng) && lng >= -180 && lng <= 180 &&
+                                            editLatitude.value.trim() !== '' && editLongitude.value.trim() !== '';
+
+                    let locationName = document.getElementById('catLocationName').value.trim();
+
+                    if (!hasManualCoords && locationName) {
+                        try {
+                            saveButton.innerText = 'Đang định vị địa chỉ...';
+                            const geocoded = await geocodeAddress(locationName);
+                            if (geocoded) {
+                                lat = geocoded.lat;
+                                lng = geocoded.lng;
+                            }
+                        } catch (e) {}
+                    }
+
+                    if (Number.isFinite(lat) && lat !== 0 && Number.isFinite(lng) && lng !== 0) {
+                        saveButton.innerText = 'Đang đồng bộ...';
+                        locationLookupWarning = await saveCatAt(
+                            lat,
+                            lng,
+                            name,
+                            note,
+                            false,
+                            currentImageDataUrl,
+                            locationName,
+                            foodMeta
                         );
-                    });
-                    saveButton.innerText = 'Đang đồng bộ...';
-                    locationLookupWarning = await saveCatAt(
-                        position.coords.latitude,
-                        position.coords.longitude,
-                        name,
-                        note,
-                        false,
-                        currentImageDataUrl,
-                        document.getElementById('catLocationName').value.trim(),
-                        foodMeta
-                    );
+                    } else {
+                        const position = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(
+                                resolve,
+                                error => reject({ geolocationError: error }),
+                                { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
+                            );
+                        });
+                        saveButton.innerText = 'Đang đồng bộ...';
+                        locationLookupWarning = await saveCatAt(
+                            position.coords.latitude,
+                            position.coords.longitude,
+                            name,
+                            note,
+                            false,
+                            currentImageDataUrl,
+                            locationName,
+                            foodMeta
+                        );
+                    }
                 }
                 if (locationLookupWarning) showAppStatus(locationLookupWarning);
                 else if (!isCloudConfigured || isEditing) clearAppStatus();
@@ -4005,6 +4258,10 @@
             modalTitle.textContent = 'Thêm quán ngon! 🍜';
             saveButton.innerText = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
             editLocationFields.classList.remove('active');
+            editLatitude.value = "";
+            editLongitude.value = "";
+            if (geocodeStatus) geocodeStatus.style.display = "none";
+            if (chooseMapLocationButton) chooseMapLocationButton.textContent = '📍 Chọn vị trí trên bản đồ';
             sourceImage = null;
             currentImageDataUrl = "";
             resetImageEditor();
