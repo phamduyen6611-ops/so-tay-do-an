@@ -496,6 +496,33 @@
             line-height: 1 !important;
         }
 
+        .leaflet-control-layers {
+            border-radius: 12px !important;
+            border: none !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15) !important;
+            font-family: inherit !important;
+            font-size: 13px !important;
+            padding: 4px !important;
+            background: white !important;
+        }
+
+        .leaflet-control-layers-expanded {
+            padding: 8px 12px !important;
+            color: var(--text-color) !important;
+        }
+
+        .leaflet-bottom {
+            margin-bottom: max(16px, env(safe-area-inset-bottom));
+        }
+
+        .leaflet-left {
+            margin-left: max(10px, env(safe-area-inset-left));
+        }
+
+        .leaflet-right {
+            margin-right: max(10px, env(safe-area-inset-right));
+        }
+
         .cat-popup-list {
             display: grid;
             gap: 10px;
@@ -1423,7 +1450,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([21.0285, 105.8542], 15);
+        const map = L.map('map', { zoomControl: false, maxZoom: 20 }).setView([21.0285, 105.8542], 15);
         const mapStatus = document.getElementById('mapStatus');
         const appStatus = document.getElementById('appStatus');
         const storageKey = 'foodMapMarkers';
@@ -1436,25 +1463,53 @@
             : null;
         let tileErrors = 0;
 
-        const tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
-            attribution: 'Tiles &copy; Esri, HERE, Garmin, (c) OpenStreetMap contributors, and the GIS user community'
+        const googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Maps'
         });
-        tileLayer.on('loading', () => {
-            tileErrors = 0;
+
+        const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&hl=vi&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Maps'
         });
-        tileLayer.on('tileerror', () => {
-            tileErrors += 1;
+
+        const googleTerrain = L.tileLayer('https://{s}.google.com/vt/lyrs=p&hl=vi&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Maps'
         });
-        tileLayer.on('load', () => {
-            if (tileErrors > 0) {
-                mapStatus.textContent = 'Không tải được bản đồ nền Esri. Hãy kiểm tra kết nối hoặc thử tải lại trang.';
-                mapStatus.style.display = 'block';
-            } else {
-                mapStatus.style.display = 'none';
-            }
-        });
-        tileLayer.addTo(map);
+
+        function bindTileEvents(layer) {
+            layer.on('loading', () => {
+                tileErrors = 0;
+            });
+            layer.on('tileerror', () => {
+                tileErrors += 1;
+            });
+            layer.on('load', () => {
+                if (tileErrors > 0) {
+                    mapStatus.textContent = 'Không tải được bản đồ nền Google Maps. Hãy kiểm tra kết nối hoặc thử tải lại trang.';
+                    mapStatus.style.display = 'block';
+                } else {
+                    mapStatus.style.display = 'none';
+                }
+            });
+        }
+
+        bindTileEvents(googleStreets);
+        bindTileEvents(googleHybrid);
+        bindTileEvents(googleTerrain);
+
+        googleStreets.addTo(map);
+
+        const baseMaps = {
+            "Bản đồ Google": googleStreets,
+            "Vệ tinh Google": googleHybrid,
+            "Địa hình Google": googleTerrain
+        };
+        L.control.layers(baseMaps, null, { position: 'bottomleft' }).addTo(map);
 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         map.on('popupopen', () => backupActions.classList.add('popup-active'));
