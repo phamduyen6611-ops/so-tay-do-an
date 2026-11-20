@@ -48,7 +48,7 @@
             background: white;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
             text-align: center;
-            z-index: 1100;
+            z-index: 3100;
         }
 
         .app-status {
@@ -1929,6 +1929,7 @@
         let imageFlipX = false;
         let imageFlipY = false;
         let currentImageDataUrl = "";
+        let imageWasEdited = false;
         let pendingMapCat = null;
         let currentUser = null;
         let isSignedIn = false;
@@ -3447,8 +3448,14 @@
         function loadImageForEditing(dataUrl) {
             return new Promise((resolve, reject) => {
                 const image = new Image();
+                image.crossOrigin = 'anonymous';
                 image.onload = () => resolve(image);
-                image.onerror = () => reject(new Error('Không thể mở ảnh đã lưu.'));
+                image.onerror = () => {
+                    const fallbackImg = new Image();
+                    fallbackImg.onload = () => resolve(fallbackImg);
+                    fallbackImg.onerror = () => reject(new Error('Không thể mở ảnh đã lưu.'));
+                    fallbackImg.src = getCatImageUrl(dataUrl);
+                };
                 image.src = getCatImageUrl(dataUrl);
             });
         }
@@ -3459,6 +3466,7 @@
             if (!canManageCat(cat)) throw new Error('Bạn chỉ có thể sửa quán do chính mình tạo.');
 
             editingCatId = cat.id;
+            imageWasEdited = false;
             modalTitle.textContent = 'Sửa thông tin quán';
             saveButton.textContent = 'Lưu thay đổi';
             chooseMapLocationButton.style.display = 'block';
@@ -3635,13 +3643,20 @@
         };
         chooseMapLocationButton.onclick = () => {
             try {
-                currentImageDataUrl = sourceImage ? photoPreviewCanvas.toDataURL('image/jpeg', 0.9) : '';
+                let mapImg = currentImageDataUrl;
+                if (imageWasEdited && sourceImage) {
+                    try {
+                        mapImg = photoPreviewCanvas.toDataURL('image/jpeg', 0.9);
+                    } catch (e) {
+                        console.warn('Không thể xuất ảnh từ canvas khi chọn vị trí:', e);
+                    }
+                }
                 pendingMapCat = {
                     editingId: editingCatId,
                     name: document.getElementById('catName').value.trim() || 'Quán chưa đặt tên',
                     location_name: document.getElementById('catLocationName').value.trim(),
                     note: document.getElementById('catNote').value || 'Một quán ngon chưa có ghi chú 🍜',
-                    image: currentImageDataUrl,
+                    image: mapImg,
                     foodMeta: readFoodMetaInputs()
                 };
                 resetAndCloseModal();
@@ -3948,29 +3963,43 @@
         document.getElementById('closeModalBtn').onclick = resetAndCloseModal;
 
         [imageZoom, imagePanX, imagePanY, imageFilter].forEach(control => {
-            control.addEventListener('input', renderImagePreview);
-            control.addEventListener('change', renderImagePreview);
+            control.addEventListener('input', () => {
+                imageWasEdited = true;
+                renderImagePreview();
+            });
+            control.addEventListener('change', () => {
+                imageWasEdited = true;
+                renderImagePreview();
+            });
         });
         document.getElementById('rotateLeftBtn').onclick = () => {
+            imageWasEdited = true;
             imageRotation = (imageRotation + 270) % 360;
             renderImagePreview();
         };
         document.getElementById('rotateRightBtn').onclick = () => {
+            imageWasEdited = true;
             imageRotation = (imageRotation + 90) % 360;
             renderImagePreview();
         };
         document.getElementById('flipHorizontalBtn').onclick = () => {
+            imageWasEdited = true;
             imageFlipX = !imageFlipX;
             renderImagePreview();
         };
         document.getElementById('flipVerticalBtn').onclick = () => {
+            imageWasEdited = true;
             imageFlipY = !imageFlipY;
             renderImagePreview();
         };
-        document.getElementById('resetImageEditBtn').onclick = resetImageEditor;
+        document.getElementById('resetImageEditBtn').onclick = () => {
+            imageWasEdited = true;
+            resetImageEditor();
+        };
 
         function handlePhotoFile(file) {
             if (!file) return;
+            imageWasEdited = true;
             sourceImage = null;
             currentImageDataUrl = "";
             previewContainer.style.display = 'none';
@@ -4079,33 +4108,46 @@
             const note = document.getElementById('catNote').value || "Một quán ngon chưa có ghi chú 🍜";
             const foodMeta = readFoodMetaInputs();
             const isEditing = Boolean(editingCatId);
+            const originalCat = isEditing ? cats.find(c => c.id === editingCatId) : null;
             saveButton.disabled = true;
             saveButton.innerText = isEditing ? 'Đang lưu...' : 'Đang lấy vị trí...';
             await new Promise(resolve => requestAnimationFrame(resolve));
-            try {
-                currentImageDataUrl = sourceImage ? photoPreviewCanvas.toDataURL('image/jpeg', 0.82) : '';
-            } catch (error) {
-                console.error('Không thể xuất ảnh đã chỉnh sửa:', error);
-                appStatus.textContent = 'Không thể xử lý ảnh này. Vui lòng chọn ảnh khác.';
-                appStatus.style.display = 'block';
-                saveButton.disabled = false;
-                saveButton.innerText = isEditing ? 'Lưu thay đổi' :
-                    isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
-                return;
+
+            if (imageWasEdited && sourceImage) {
+                try {
+                    currentImageDataUrl = photoPreviewCanvas.toDataURL('image/jpeg', 0.82);
+                } catch (error) {
+                    console.warn('Không thể xuất lại ảnh từ canvas, giữ ảnh hiện tại:', error);
+                    if (originalCat?.image) currentImageDataUrl = originalCat.image;
+                }
+            } else if (isEditing) {
+                currentImageDataUrl = originalCat?.image || currentImageDataUrl || '';
+            } else if (sourceImage && !currentImageDataUrl) {
+                try {
+                    currentImageDataUrl = photoPreviewCanvas.toDataURL('image/jpeg', 0.82);
+                } catch (error) {
+                    console.warn('Không thể xuất ảnh từ canvas:', error);
+                }
             }
+
             let locationLookupWarning = '';
             try {
                 if (editingCatId) {
                     const editedId = editingCatId;
                     let lat = Number(editLatitude.value);
                     let lng = Number(editLongitude.value);
+                    if (!Number.isFinite(lat) || lat === 0) {
+                        lat = originalCat ? originalCat.lat : 0;
+                    }
+                    if (!Number.isFinite(lng) || lng === 0) {
+                        lng = originalCat ? originalCat.lng : 0;
+                    }
                     let locationName = document.getElementById('catLocationName').value.trim();
 
                     // Tự động định vị lại tọa độ nếu người dùng đổi tên địa chỉ mà tọa độ chưa được cập nhật
-                    const originalCat = cats.find(c => c.id === editedId);
                     const originalLoc = originalCat ? (originalCat.location_name || '').trim() : '';
                     if (originalCat && locationName && locationName !== originalLoc &&
-                        lat === originalCat.lat && lng === originalCat.lng) {
+                        Math.abs(lat - originalCat.lat) < 0.000001 && Math.abs(lng - originalCat.lng) < 0.000001) {
                         saveButton.innerText = 'Đang định vị địa chỉ mới...';
                         try {
                             const geocoded = await geocodeAddress(locationName);
@@ -4141,7 +4183,7 @@
                             location_name: locationName,
                             note,
                             ...foodMeta,
-                            image: currentImageDataUrl || null
+                            image: currentImageDataUrl || cat.image || null
                         }
                         : cat);
                     await persistCats(updatedCats);
@@ -4232,11 +4274,13 @@
                         } catch (saveError) {
                             console.error('Không thể lưu vị trí quán:', saveError);
                             showAppStatus(`Không thể lưu vị trí: ${saveError.message}`);
+                            alert(`Không thể lưu vị trí: ${saveError.message}`);
                         }
                     }
                 } else {
                     console.error('Không thể lưu thông tin quán:', error);
                     showAppStatus(`Không thể lưu thông tin: ${error.message}`);
+                    alert(`Không thể lưu: ${error.message}`);
                 }
             } finally {
                 saveButton.disabled = false;
@@ -4255,6 +4299,7 @@
             setFoodMetaInputs({});
             previewContainer.style.display = "none";
             editingCatId = null;
+            imageWasEdited = false;
             modalTitle.textContent = 'Thêm quán ngon! 🍜';
             saveButton.innerText = isCloudConfigured ? 'Thêm lên bản đồ' : 'Lưu vị trí';
             editLocationFields.classList.remove('active');
